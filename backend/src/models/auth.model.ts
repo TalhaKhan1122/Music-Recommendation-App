@@ -3,7 +3,10 @@ import bcrypt from 'bcryptjs';
 
 export interface IUser extends Document {
   email: string;
-  password: string;
+  password?: string;
+  googleId?: string;
+  name?: string;
+  picture?: string;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -21,9 +24,22 @@ const UserSchema: Schema = new Schema(
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: function() {
+        return !this.googleId; // Password required only if not Google OAuth user
+      },
       minlength: [6, 'Password must be at least 6 characters long'],
       select: false, // Don't return password by default
+    },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true, // Allows multiple null values
+    },
+    name: {
+      type: String,
+    },
+    picture: {
+      type: String,
     },
   },
   {
@@ -31,10 +47,10 @@ const UserSchema: Schema = new Schema(
   }
 );
 
-// Hash password before saving
+// Hash password before saving (only for non-Google users)
 UserSchema.pre('save', async function (next) {
-  // Only hash the password if it has been modified (or is new)
-  if (!this.isModified('password')) {
+  // Only hash the password if it has been modified (or is new) and exists
+  if (!this.isModified('password') || !this.password) {
     return next();
   }
 
@@ -52,6 +68,10 @@ UserSchema.pre('save', async function (next) {
 UserSchema.methods.comparePassword = async function (
   candidatePassword: string
 ): Promise<boolean> {
+  // If no password is set (e.g., Google OAuth user), return false
+  if (!this.password) {
+    return false;
+  }
   return bcrypt.compare(candidatePassword, this.password);
 };
 

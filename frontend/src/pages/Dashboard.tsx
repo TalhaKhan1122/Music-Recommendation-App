@@ -1,12 +1,15 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context';
+import { useAuth, useSpotifyPlayer } from '../context';
+import { MenuIcon, LogoutIcon } from '../components/icons';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const { stopPlayer } = useSpotifyPlayer();
 
   const handleLogout = () => {
+    stopPlayer();
     logout();
     navigate('/');
   };
@@ -26,12 +29,7 @@ const Dashboard: React.FC = () => {
         
         {/* Menu Icon */}
         <Link to="/" className="text-white hover:text-gray-300 transition-colors inline-block p-2 hover:bg-white/10 rounded-lg">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="3" y="3" width="6" height="6" rx="1" fill="currentColor"/>
-            <rect x="11" y="3" width="6" height="6" rx="1" fill="currentColor"/>
-            <line x1="3" y1="13" x2="21" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            <line x1="3" y1="17" x2="21" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
+          <MenuIcon size={24} />
         </Link>
 
         {/* Logout Button */}
@@ -42,11 +40,7 @@ const Dashboard: React.FC = () => {
             fontFamily: 'system-ui, -apple-system, sans-serif'
           }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <polyline points="16 17 21 12 16 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <line x1="21" y1="12" x2="9" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <LogoutIcon size={18} />
           <span className="hidden sm:inline text-sm font-medium">Logout</span>
         </button>
       </div>
@@ -55,13 +49,15 @@ const Dashboard: React.FC = () => {
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Left Panel - Go with AI Model */}
-          <div className="lg:col-span-2 rounded-3xl p-8 relative overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform duration-300"
-               style={{ 
-                 background: 'rgba(20, 20, 30, 0.6)',
-                 backdropFilter: 'blur(20px)',
-                 border: '1px solid rgba(255, 255, 255, 0.1)',
-                 minHeight: '500px'
-               }}>
+          <div 
+            onClick={() => navigate('/ai-mode')}
+            className="lg:col-span-2 rounded-3xl p-8 relative overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform duration-300"
+            style={{ 
+              background: 'rgba(20, 20, 30, 0.6)',
+              backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              minHeight: '500px'
+            }}>
             {/* Pink/Purple Glow Background */}
             <div className="absolute inset-0 opacity-30" style={{
               background: 'radial-gradient(circle at 30% 50%, #EC4899 0%, #A855F7 50%, transparent 70%)',
@@ -125,7 +121,9 @@ const Dashboard: React.FC = () => {
           {/* Right Panel - Three Sections */}
           <div className="flex flex-col gap-6">
             {/* Search and Enjoy Music */}
-            <div className="flex-1 rounded-3xl p-6 relative overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform duration-300"
+            <div
+              onClick={() => navigate('/artists')}
+              className="flex-1 rounded-3xl p-6 relative overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform duration-300"
                  style={{ 
                    background: 'rgba(20, 20, 30, 0.6)',
                    backdropFilter: 'blur(20px)',

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { signup, login, getCurrentUser } from '../controllers/auth.controller';
+import { googleAuth, googleCallback, verifyGoogleToken } from '../controllers/googleAuth.controller';
 import { authenticate } from '../middleware';
 
 const router = Router();
@@ -17,6 +18,27 @@ router.post('/signup', signup);
  * @access  Public
  */
 router.post('/login', login);
+
+/**
+ * @route   GET /api/auth/google
+ * @desc    Initiate Google OAuth flow
+ * @access  Public
+ */
+router.get('/google', googleAuth);
+
+/**
+ * @route   GET /api/auth/google/callback
+ * @desc    Handle Google OAuth callback
+ * @access  Public
+ */
+router.get('/google/callback', googleCallback);
+
+/**
+ * @route   POST /api/auth/google/verify
+ * @desc    Verify Google ID token (for frontend direct verification)
+ * @access  Public
+ */
+router.post('/google/verify', verifyGoogleToken);
 
 /**
  * @route   GET /api/auth/me

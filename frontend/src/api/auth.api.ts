@@ -18,6 +18,8 @@ export interface AuthResponse {
     user: {
       id: string;
       email: string;
+      name?: string;
+      picture?: string;
       createdAt: string;
     };
     token: string;
@@ -28,6 +30,8 @@ export interface AuthResponse {
 export interface User {
   id: string;
   email: string;
+  name?: string;
+  picture?: string;
   createdAt: string;
 }
 
@@ -35,42 +39,88 @@ export interface User {
  * Sign up a new user
  */
 export const signup = async (data: SignupData): Promise<AuthResponse> => {
-  const response = await fetch(`${API_BASE_URL}/auth/signup`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
-  });
+  try {
+    console.log('📝 Attempting signup...', { email: data.email, API_BASE_URL });
+    
+    const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
 
-  const result = await response.json();
-  
-  if (!response.ok) {
-    throw new Error(result.message || 'Signup failed');
+    console.log('📥 Signup response status:', response.status, response.statusText);
+
+    // Check if response is JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('❌ Non-JSON response:', text);
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log('📥 Signup response data:', result);
+    
+    if (!response.ok) {
+      throw new Error(result.message || 'Signup failed');
+    }
+
+    return result;
+  } catch (error: any) {
+    // Handle network errors
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error('🌐 Network error - Is the backend server running?');
+      throw new Error('Cannot connect to server. Please make sure the backend is running on http://localhost:5000');
+    }
+    // Re-throw other errors
+    throw error;
   }
-
-  return result;
 };
 
 /**
  * Login user
  */
 export const login = async (data: LoginData): Promise<AuthResponse> => {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
-  });
+  try {
+    console.log('🔐 Attempting login...', { email: data.email, API_BASE_URL });
+    
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
 
-  const result = await response.json();
-  
-  if (!response.ok) {
-    throw new Error(result.message || 'Login failed');
+    console.log('📥 Login response status:', response.status, response.statusText);
+
+    // Check if response is JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('❌ Non-JSON response:', text);
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log('📥 Login response data:', result);
+    
+    if (!response.ok) {
+      throw new Error(result.message || 'Login failed');
+    }
+
+    return result;
+  } catch (error: any) {
+    // Handle network errors
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error('🌐 Network error - Is the backend server running?');
+      throw new Error('Cannot connect to server. Please make sure the backend is running on http://localhost:5000');
+    }
+    // Re-throw other errors
+    throw error;
   }
-
-  return result;
 };
 
 /**

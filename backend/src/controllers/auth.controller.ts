@@ -14,10 +14,13 @@ interface SignupLoginRequest extends Request {
   };
 }
 
-// Generate JWT Token
-const generateToken = (userId: string): string => {
-  return jwt.sign({ userId }, JWT_SECRET, {
-    expiresIn: JWT_EXPIRE,
+// Generate JWT Token (export for use in Google OAuth)
+export const generateToken = (userId: string): string => {
+  if (!JWT_SECRET || JWT_SECRET.trim() === '') {
+    throw new Error('JWT_SECRET is not configured. Please set it in your .env file.');
+  }
+  return jwt.sign({ userId }, JWT_SECRET as string, {
+    expiresIn: JWT_EXPIRE as string,
   });
 };
 
@@ -74,7 +77,7 @@ export const signup = async (req: SignupLoginRequest, res: Response): Promise<vo
     await user.save();
 
     // Generate token
-    const token = generateToken(user._id.toString());
+    const token = generateToken((user._id as any).toString());
 
     // Send response
     res.status(201).json({
@@ -84,6 +87,8 @@ export const signup = async (req: SignupLoginRequest, res: Response): Promise<vo
         user: {
           id: user._id,
           email: user.email,
+          name: user.name,
+          picture: user.picture,
           createdAt: user.createdAt,
         },
         token,
@@ -149,6 +154,24 @@ export const login = async (req: SignupLoginRequest, res: Response): Promise<voi
       return;
     }
 
+    // Check if user is a Google OAuth user (no password)
+    if (user.googleId && !user.password) {
+      res.status(401).json({
+        success: false,
+        message: 'This account was created with Google. Please use Google sign-in.',
+      });
+      return;
+    }
+
+    // Check if user has a password
+    if (!user.password) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid email or password',
+      });
+      return;
+    }
+
     // Check password
     const isPasswordValid = await user.comparePassword(password);
     
@@ -161,7 +184,7 @@ export const login = async (req: SignupLoginRequest, res: Response): Promise<voi
     }
 
     // Generate token
-    const token = generateToken(user._id.toString());
+    const token = generateToken((user._id as any).toString());
 
     // Send response
     res.status(200).json({
@@ -171,6 +194,8 @@ export const login = async (req: SignupLoginRequest, res: Response): Promise<voi
         user: {
           id: user._id,
           email: user.email,
+          name: user.name,
+          picture: user.picture,
           createdAt: user.createdAt,
         },
         token,
@@ -178,6 +203,8 @@ export const login = async (req: SignupLoginRequest, res: Response): Promise<voi
     });
   } catch (error: any) {
     console.error('Login error:', error);
+    console.error('Error details:', error.message);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Server error during login',
@@ -218,6 +245,8 @@ export const getCurrentUser = async (req: AuthRequest, res: Response): Promise<v
         user: {
           id: user._id,
           email: user.email,
+          name: user.name,
+          picture: user.picture,
           createdAt: user.createdAt,
         },
       },

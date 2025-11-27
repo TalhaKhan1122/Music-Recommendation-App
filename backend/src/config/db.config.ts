@@ -1,13 +1,17 @@
 import mongoose from 'mongoose';
 
-// Get MongoDB URI from environment or use default
-const MONGODB_URI = process.env.MONGODB_URI || 
-  'mongodb+srv://tk42100678_db_user:dzGuoZjJJot7qRFX@cluster0.bet9lh6.mongodb.net/mr_app?retryWrites=true&w=majority';
-
-// Validate connection string
-if (!MONGODB_URI || MONGODB_URI.trim() === '') {
-  throw new Error('MONGODB_URI is not defined');
-}
+// Get MongoDB URI from environment (lazy evaluation)
+// Don't validate at module load time - wait until connectDB is called
+const getMongoDBUri = (): string => {
+  const MONGODB_URI = process.env.MONGODB_URI;
+  
+  // Validate connection string
+  if (!MONGODB_URI || MONGODB_URI.trim() === '') {
+    throw new Error('MONGODB_URI is not defined. Please set it in your .env file.');
+  }
+  
+  return MONGODB_URI;
+};
 
 /**
  * Connect to MongoDB database
@@ -15,6 +19,9 @@ if (!MONGODB_URI || MONGODB_URI.trim() === '') {
  */
 export const connectDB = async (): Promise<void> => {
   try {
+    // Get MongoDB URI (validates at call time, not module load time)
+    const MONGODB_URI = getMongoDBUri();
+    
     // Check if already connected
     if (mongoose.connection.readyState === 1) {
       console.log('📦 MongoDB already connected');
@@ -60,12 +67,12 @@ export const connectDB = async (): Promise<void> => {
     }
 
     // Connect to MongoDB with timeout and better error handling
-    // Note: Removed minPoolSize as it may cause issues with MongoDB Atlas free tier
+    // Using simpler options that match the working test connection
+    // MongoDB Atlas automatically uses TLS with mongodb+srv:// URIs
     const connectionOptions = {
-      serverSelectionTimeoutMS: 30000, // 30 second timeout (increased)
+      serverSelectionTimeoutMS: 30000, // 30 second timeout
       socketTimeoutMS: 45000, // 45 second socket timeout
-      connectTimeoutMS: 30000, // 30 second connection timeout
-      maxPoolSize: 10, // Maintain up to 10 socket connections
+      // Don't override TLS settings - let MongoDB handle it automatically
     };
 
     console.log('⏳ Connecting with options:', JSON.stringify(connectionOptions, null, 2));
