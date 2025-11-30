@@ -149,6 +149,7 @@ const Artists: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMoreMap, setHasMoreMap] = useState<Record<string, boolean>>({});
+  const [loadingCategories, setLoadingCategories] = useState<Set<string>>(new Set());
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchResults, setSearchResults] = useState<SpotifyCatalogSearchResult>(() => emptySearchResult());
@@ -220,13 +221,28 @@ const Artists: React.FC = () => {
   }, [fetchArtists]);
 
   const handleLoadMore = useCallback(
-    (category: string) => {
+    async (category: string) => {
       const current = requestedLimitRef.current[category] ?? INITIAL_LIMIT;
+      const newLimit = current + LIMIT_STEP;
+      
+      // Set loading state for this category
+      setLoadingCategories((prev) => new Set(prev).add(category));
+      
       requestedLimitRef.current = {
         ...requestedLimitRef.current,
-        [category]: current + LIMIT_STEP,
+        [category]: newLimit,
       };
-      fetchArtists();
+      
+      try {
+        await fetchArtists();
+      } finally {
+        // Clear loading state for this category
+        setLoadingCategories((prev) => {
+          const next = new Set(prev);
+          next.delete(category);
+          return next;
+        });
+      }
     },
     [fetchArtists]
   );
@@ -543,44 +559,32 @@ const Artists: React.FC = () => {
       }`}
     >
       <div className="mx-auto max-w-7xl px-6 py-12">
-        <div className="flex flex-col gap-10 lg:grid lg:grid-cols-[140px_minmax(0,1fr)] lg:items-start">
-          <aside className="order-last mt-8 lg:order-first lg:mt-0 lg:h-[80vh] lg:sticky lg:top-24">
-            <div className="flex h-full flex-col items-center rounded-[32px] border border-white/10 bg-[#09060f]/95 px-4 py-6 shadow-[0_25px_70px_rgba(20,0,40,0.45)] backdrop-blur-xl">
-              <div className="flex flex-col items-center gap-2 pb-6 text-center">
-                <p className="text-[0.5rem] font-semibold uppercase tracking-[0.7em] text-white/35">
-                  Your Library
-                </p>
-                <h2 className="text-lg font-semibold text-white">Followed Artists</h2>
-                {hasFollowedArtists && (
-                  <span className="rounded-full border border-white/15 px-3 py-1 text-[0.55rem] uppercase tracking-[0.4em] text-white/70 shadow-inner shadow-purple-500/30">
-                    {followedArtistList.length}
-                  </span>
-                )}
-              </div>
+        <div className="flex flex-col gap-10 lg:grid lg:grid-cols-[80px_minmax(0,1fr)] lg:items-start">
+          <aside className="order-last mt-8 lg:order-first lg:mt-0 lg:h-[calc(100vh-8rem)] lg:sticky lg:top-24">
+            <div className="flex h-full flex-col items-center rounded-2xl border border-white/10 bg-[#09060f]/95 px-2 py-4 shadow-[0_25px_70px_rgba(20,0,40,0.45)] backdrop-blur-xl">
               {hasFollowedArtists ? (
-                <ul className="flex gap-6 overflow-x-auto pb-2 lg:flex-1 lg:flex-col lg:gap-5 lg:overflow-y-auto lg:overflow-x-visible custom-scroll">
+                <ul className="flex gap-4 overflow-x-auto pb-2 lg:flex-1 lg:flex-col lg:gap-3 lg:overflow-y-auto lg:overflow-x-visible custom-scroll lg:items-center">
                   {followedArtistList.map((artist) => (
-                    <li key={artist.id}>
+                    <li key={artist.id} className="flex-shrink-0">
                       <button
                         type="button"
                         onClick={() => handleFollowedArtistSelect(artist)}
                         className="group relative flex items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
                         title={artist.name}
                       >
-                        <span className="relative inline-flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-black/40 shadow-[0_12px_25px_rgba(0,0,0,0.55)] ring-1 ring-white/10 transition group-hover:-translate-y-1 group-hover:ring-purple-400/40">
+                        <span className="relative inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-black/40 shadow-[0_8px_16px_rgba(0,0,0,0.4)] transition group-hover:scale-110 group-hover:border-purple-400/60">
                           {artist.image ? (
                             <img
                               src={artist.image}
                               alt={artist.name}
-                              className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
                               loading="lazy"
                             />
                           ) : (
-                            <span className="text-sm font-semibold uppercase text-white/80">
+                            <span className="text-xs font-semibold uppercase text-white/80">
                               {getArtistInitials(artist.name)}
                             </span>
                           )}
-                          <span className="absolute inset-0 rounded-full bg-gradient-to-b from-transparent via-transparent to-black/40 opacity-0 transition-opacity group-hover:opacity-100" />
                         </span>
                         <span className="sr-only">{artist.name}</span>
                       </button>
@@ -588,8 +592,11 @@ const Artists: React.FC = () => {
                   ))}
                 </ul>
               ) : (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-4 py-6 text-center text-xs text-white/50">
-                  Follow artists from the showcase to pin them here for quick access.
+                <div className="flex flex-col items-center justify-center h-full px-2 text-center">
+                  <p className="text-[0.5rem] font-semibold uppercase tracking-[0.7em] text-white/35 mb-2">
+                    Your Library
+                  </p>
+                  <p className="text-xs text-white/50">Follow artists to see them here</p>
                 </div>
               )}
             </div>
@@ -706,10 +713,19 @@ const Artists: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleLoadMore(section.category)}
-                      disabled={!hasMore}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs uppercase tracking-[0.3em] text-white/70 transition-colors hover:bg-white/10 disabled:opacity-50"
+                      disabled={!hasMore || loadingCategories.has(section.category)}
+                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs uppercase tracking-[0.3em] text-white/70 transition-colors hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {hasMore ? 'Load more' : 'No more artists'}
+                      {loadingCategories.has(section.category) ? (
+                        <>
+                          <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
+                          <span>Loading...</span>
+                        </>
+                      ) : hasMore ? (
+                        'Load more'
+                      ) : (
+                        'No more artists'
+                      )}
                     </button>
                   </div>
                 </section>

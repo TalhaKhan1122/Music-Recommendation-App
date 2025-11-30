@@ -28,47 +28,100 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Initialize auth state from localStorage
-  useEffect(() => {
-    const initializeAuth = async () => {
+  // Initialize from localStorage immediately (synchronous)
+  const getStoredAuth = () => {
+    try {
       const storedToken = localStorage.getItem('token');
       const storedUser = localStorage.getItem('user');
-
-      if (storedToken) {
-        setToken(storedToken);
-        
-        // If we have stored user, use it temporarily
-        if (storedUser) {
-          try {
-            setUser(JSON.parse(storedUser));
-          } catch (error) {
-            console.error('Error parsing stored user:', error);
-          }
-        }
-        
-        // Always verify token is still valid (this will update user info)
-        await verifyToken();
-      } else {
-        setIsLoading(false);
+      
+      console.log('🔍 Checking localStorage:', { 
+        hasToken: !!storedToken, 
+        hasUser: !!storedUser 
+      });
+      
+      if (storedToken && storedUser) {
+        const parsedUser = JSON.parse(storedUser) as User;
+        console.log('✅ Found stored credentials, restoring session for:', parsedUser.email);
+        return {
+          token: storedToken,
+          user: parsedUser,
+        };
       }
-    };
+    } catch (error) {
+      console.error('❌ Error reading from localStorage:', error);
+    }
+    console.log('❌ No stored credentials found');
+    return { token: null, user: null };
+  };
 
-    initializeAuth();
+  const storedAuth = getStoredAuth();
+  const [user, setUser] = useState<User | null>(storedAuth.user);
+  const [token, setToken] = useState<string | null>(storedAuth.token);
+  // If we have stored auth, user is already logged in, so isLoading = false
+  const [isLoading, setIsLoading] = useState(!(storedAuth.token && storedAuth.user));
+
+  // Debug logging in useEffect to avoid render issues
+  useEffect(() => {
+    console.log('🔐 Auth State Initialized:', { 
+      hasUser: !!user, 
+      hasToken: !!token, 
+      isLoading, 
+      isAuthenticated: !!(user && token),
+      userEmail: user?.email
+    });
+  }, []);
+
+  // Verify token in background if we have stored credentials
+  useEffect(() => {
+    if (token && user) {
+      console.log('🔄 Verifying token in background...');
+      // Verify token in background, but don't block the UI
+      verifyToken().catch(() => {
+        // If verification fails, we'll handle it in verifyToken
+      });
+    } else {
+      console.log('❌ No token or user found, user not authenticated');
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const verifyToken = async () => {
     try {
       const response = await getCurrentUser();
-      setUser(response.data.user);
-      setIsLoading(false);
-    } catch (error) {
+      if (response && response.data && response.data.user) {
+        setUser(response.data.user);
+        // Update localStorage with fresh user data
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        setIsLoading(false);
+        console.log('Token verified successfully, user authenticated');
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (error: any) {
       console.error('Token verification failed:', error);
-      logout();
+      
+      // Check if it's a 401 error (unauthorized) - token is invalid
+      const status = error.status || error.response?.status;
+      const errorMessage = error.message || '';
+      
+      const isUnauthorized = status === 401 || 
+                            errorMessage.includes('401') || 
+                            errorMessage.includes('Unauthorized') ||
+                            errorMessage.includes('No token') ||
+                            errorMessage.includes('invalid token') ||
+                            errorMessage.includes('Token expired') ||
+                            errorMessage.includes('authentication');
+      
+      if (isUnauthorized) {
+        // Token is invalid, clear everything
+        console.log('Token is invalid (401), clearing auth data');
+        logout();
+      } else {
+        // For network errors or other errors, keep the stored data
+        // User can still use the app with cached data
+        console.log('Network or other error, keeping cached auth data. Error:', errorMessage);
+        setIsLoading(false);
+      }
     }
   };
 

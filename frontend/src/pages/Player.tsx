@@ -5,11 +5,8 @@ import {
   getTracksByMood,
 } from '../api/music.api';
 import type { Track } from '../api/music.api';
-import SpotifyEmbed from '../components/SpotifyEmbed';
+import { useSpotifyPlayer } from '../context';
 import { 
-  ArrowBackIcon, 
-  LightningIcon, 
-  ChevronDownIcon,
   PlayIcon,
   PauseIcon,
   NextIcon,
@@ -24,6 +21,7 @@ const Player: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const mood = searchParams.get('mood') || 'relaxed';
+  const { playTrack } = useSpotifyPlayer();
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(65);
@@ -34,6 +32,9 @@ const Player: React.FC = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isProcessingPlaylistAction, setIsProcessingPlaylistAction] = useState(false);
   const [isCurrentTrackLiked, setIsCurrentTrackLiked] = useState(false);
+  const [showActionMenu, setShowActionMenu] = useState(false);
+  const actionMenuRef = useRef<HTMLDivElement | null>(null);
+  const fetchedMoodRef = useRef<string | null>(null); // Track which mood we've already fetched
 
   // Stub functions for playlist and favorite track management
   const openPlaylistModal = () => {
@@ -64,11 +65,18 @@ const Player: React.FC = () => {
     }
   };
 
-  // Fetch tracks based on mood
+  // Fetch tracks based on mood - only once per mood
   useEffect(() => {
+    // Skip if we've already fetched for this mood
+    if (fetchedMoodRef.current === mood) {
+      console.log('🎵 Already fetched tracks for mood:', mood, '- skipping');
+      return;
+    }
+
     const fetchTracks = async () => {
       try {
         console.log('🎵 Fetching tracks for mood:', mood);
+        fetchedMoodRef.current = mood; // Mark this mood as fetched
         setIsLoading(true);
         
         const response = await getTracksByMood(mood, 20, 'recommendations', 'spotify');
@@ -87,8 +95,11 @@ const Player: React.FC = () => {
           console.log('🎵 Is Spotify?', firstTrack.source === 'spotify' || firstTrack.externalUrl?.includes('spotify.com'));
           setCurrentTrack(firstTrack);
           setCurrentTrackIndex(0);
+          // Set track in global player
+          const trackId = firstTrack.id || firstTrack.externalUrl || '';
+          playTrack(firstTrack, trackId);
           
-          console.log('🎵 First track set, SpotifyEmbed component will auto-load if it\'s a Spotify track');
+          console.log('🎵 First track set, global player will handle playback');
           
           toast.success(`Found ${response.data.tracks.length} tracks! Starting playback... 🎵`, {
             position: 'top-right',
@@ -131,6 +142,7 @@ const Player: React.FC = () => {
         // Set empty tracks array on error
         setTracks([]);
         setCurrentTrack(null);
+        fetchedMoodRef.current = null; // Reset on error so we can retry
       } finally {
         setIsLoading(false);
       }
@@ -139,7 +151,7 @@ const Player: React.FC = () => {
     if (mood) {
       fetchTracks();
     }
-  }, [mood]);
+  }, [mood, playTrack]);
 
   // Initialize audio/video when track changes
   useEffect(() => {
@@ -300,9 +312,13 @@ const Player: React.FC = () => {
   const handleTrackSelect = (index: number) => {
     if (tracks.length > 0 && index >= 0 && index < tracks.length) {
       console.log('🎵 User selected track:', tracks[index].name);
+      const selectedTrack = tracks[index];
       setCurrentTrackIndex(index);
-      setCurrentTrack(tracks[index]);
+      setCurrentTrack(selectedTrack);
       setIsPlaying(false);
+      // Set track in global player
+      const trackId = selectedTrack.id || selectedTrack.externalUrl || '';
+      playTrack(selectedTrack, trackId);
     }
   };
 
@@ -310,9 +326,13 @@ const Player: React.FC = () => {
   const handleNext = () => {
     if (tracks.length > 0) {
       const nextIndex = (currentTrackIndex + 1) % tracks.length;
+      const nextTrack = tracks[nextIndex];
       setCurrentTrackIndex(nextIndex);
-      setCurrentTrack(tracks[nextIndex]);
+      setCurrentTrack(nextTrack);
       setIsPlaying(false);
+      // Set track in global player
+      const trackId = nextTrack.id || nextTrack.externalUrl || '';
+      playTrack(nextTrack, trackId);
     }
   };
 
@@ -320,13 +340,71 @@ const Player: React.FC = () => {
   const handlePrevious = () => {
     if (tracks.length > 0) {
       const prevIndex = currentTrackIndex === 0 ? tracks.length - 1 : currentTrackIndex - 1;
+      const prevTrack = tracks[prevIndex];
       setCurrentTrackIndex(prevIndex);
-      setCurrentTrack(tracks[prevIndex]);
+      setCurrentTrack(prevTrack);
       setIsPlaying(false);
+      // Set track in global player
+      const trackId = prevTrack.id || prevTrack.externalUrl || '';
+      playTrack(prevTrack, trackId);
     }
   };
 
+  // Handle action menu - click outside to close
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
+        setShowActionMenu(false);
+      }
+    };
 
+    if (showActionMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showActionMenu]);
+
+  const handleViewArtist = () => {
+    if (!currentTrack) return;
+    // Navigate to artists page - user can search for the artist
+    // For Spotify tracks, we could extract artist ID from external URL in the future
+    navigate('/artists');
+    toast.info(`Search for "${currentTrack.artists}" on the Artists page`, {
+      position: 'top-right',
+      autoClose: 3000,
+    });
+    setShowActionMenu(false);
+  };
+
+  const handleShareTrack = async () => {
+    if (!currentTrack) return;
+    
+    if (navigator.share && currentTrack.externalUrl) {
+      try {
+        await navigator.share({
+          title: currentTrack.name,
+          text: `Check out "${currentTrack.name}" by ${currentTrack.artists}`,
+          url: currentTrack.externalUrl,
+        });
+      } catch (err) {
+        // User cancelled or error occurred
+        console.log('Share cancelled or failed');
+      }
+    } else if (currentTrack.externalUrl) {
+      // Fallback: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(currentTrack.externalUrl);
+        toast.success('Link copied to clipboard!');
+      } catch (err) {
+        toast.error('Failed to copy link');
+      }
+    } else {
+      toast.info('Share link not available for this track');
+    }
+    setShowActionMenu(false);
+  };
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -352,78 +430,8 @@ const Player: React.FC = () => {
 
       {/* Content */}
       <div className="relative z-10 min-h-screen flex flex-col">
-        {/* Top Bar */}
-        <div className="flex items-center justify-between p-6">
-          {/* Left Side */}
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => navigate(-1)}
-              className="text-white hover:text-gray-300 transition-colors "
-            >
-              <ArrowBackIcon size={24} />
-            </button>
-            
-            <button className="flex items-center gap-2 px-4 py-2 bg-gray-800/80 backdrop-blur-sm rounded-full text-white text-sm hover:bg-gray-700/80 transition-colors">
-              <LightningIcon size={16} />
-              <span>Recharge</span>
-              <ChevronDownIcon size={12} />
-            </button>
-          </div>
-
-          {/* Right Side */}
-          <div className="flex items-center gap-4">
-            <button
-              onClick={openPlaylistModal}
-              disabled={isProcessingPlaylistAction}
-              className={`px-4 py-2 bg-gray-800/80 backdrop-blur-sm rounded-full text-white text-sm transition-colors ${
-                isProcessingPlaylistAction ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-700/80'
-              }`}
-            >
-              Manage Playlists
-            </button>
-            <button className="text-white hover:text-gray-300 transition-colors p-2">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9 18V5l12-2v13M9 18c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3zm12-3c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3zM9 12l12-2"/>
-                <circle cx="6" cy="18" r="2"/>
-              </svg>
-            </button>
-            <button className="text-white hover:text-gray-300 transition-colors p-2">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9 18V5l12-2v13M9 18c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3zm12-3c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3zM9 12l12-2"/>
-              </svg>
-            </button>
-            <button className="text-white hover:text-gray-300 transition-colors p-2">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="7" height="7"/>
-                <rect x="14" y="3" width="7" height="7"/>
-                <rect x="14" y="14" width="7" height="7"/>
-                <rect x="3" y="14" width="7" height="7"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-
         {/* Center Content - Track List */}
         <div className="flex-1 flex flex-col px-6 py-8 overflow-hidden">
-          {currentTrack && (() => {
-            const isSpotify = currentTrack.source === 'spotify' || currentTrack.externalUrl?.includes('spotify.com');
-            const trackId = currentTrack.id || currentTrack.externalUrl || '';
-
-            if (!isSpotify) {
-              return null;
-            }
-
-            return (
-              <div className="bg-gray-900/95 backdrop-blur-md border border-gray-800/60 rounded-2xl shadow-lg">
-                <div className="container mx-auto">
-                  <SpotifyEmbed 
-                    urlOrId={trackId}
-                  />
-                </div>
-              </div>
-            );
-          })()}
-
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-full">
               <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-purple-500 mb-4"></div>
@@ -558,203 +566,6 @@ const Player: React.FC = () => {
           )}
         </div>
 
-        {/* Bottom Player Controls Bar */}
-        <div className="bg-gray-900/90 backdrop-blur-md border-t border-gray-800/50">
-          <div className="container mx-auto px-4 sm:px-6 py-4">
-            <div className="flex items-center justify-between gap-4">
-              {/* Left Side - Song Info */}
-              <div className="flex items-center gap-4 flex-1 min-w-0">
-                {/* Album Art */}
-                {currentTrack ? (
-                  <>
-                    <div className="flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden bg-gradient-to-br from-green-400/20 to-blue-500/20">
-                      <img 
-                        src={currentTrack.albumImage || 'https://via.placeholder.com/200'} 
-                        alt={currentTrack.album}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200';
-                        }}
-                      />
-                    </div>
-                    
-                    {/* Song Details */}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-white font-semibold text-sm sm:text-base truncate" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-                        {currentTrack.name}
-                      </div>
-                      <div className="text-gray-400 text-xs sm:text-sm truncate" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-                        {currentTrack.artists}
-                      </div>
-                      <div className="text-gray-500 text-xs truncate" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-                        {currentTrack.album}
-                      </div>
-                      
-                      {/* Tags */}
-                      <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        <span className="px-2 py-1 bg-gray-800/60 rounded-full text-gray-300 text-xs uppercase">{mood}</span>
-                        <a 
-                          href={currentTrack.externalUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-2 py-1 bg-gray-800/60 rounded-full text-gray-300 text-xs hover:bg-gray-700/60 transition-colors"
-                        >
-                          {currentTrack.source === 'youtube' || currentTrack.externalUrl?.includes('youtube.com') 
-                            ? 'Open in YouTube' 
-                            : currentTrack.source === 'soundcloud' || currentTrack.externalUrl?.includes('soundcloud.com')
-                            ? 'Open in SoundCloud'
-                            : 'Open in Spotify'}
-                        </a>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleLiked();
-                          }}
-                          disabled={isProcessingPlaylistAction}
-                          className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                            isCurrentTrackLiked
-                              ? 'bg-pink-600/80 text-white hover:bg-pink-500/80 disabled:bg-pink-600/50'
-                              : 'bg-purple-600/70 text-white hover:bg-purple-600 disabled:bg-purple-600/40'
-                          }`}
-                        >
-                          <HeartIcon
-                            size={16}
-                            className="w-4 h-4"
-                            filled={isCurrentTrackLiked}
-                          />
-                          <span>{isCurrentTrackLiked ? 'Liked' : 'Like Song'}</span>
-                        </button>
-                      </div>
-                      
-                      {/* Interaction Icons */}
-                      <div className="flex items-center gap-4 mt-2">
-                        <button className="text-gray-400 hover:text-white transition-colors p-1">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
-                          </svg>
-                        </button>
-                        <a 
-                          href={currentTrack.externalUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-gray-400 hover:text-white transition-colors p-1"
-                        >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="18" cy="5" r="3"/>
-                            <circle cx="6" cy="12" r="3"/>
-                            <circle cx="18" cy="19" r="3"/>
-                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-                          </svg>
-                        </a>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden bg-gradient-to-br from-green-400/20 to-blue-500/20">
-                      <div className="w-full h-full flex items-center justify-center text-gray-500">🎵</div>
-                    </div>
-                    
-                    {/* Song Details */}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-white font-semibold text-sm sm:text-base truncate" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-                        No track selected
-                      </div>
-                      <div className="text-gray-400 text-xs sm:text-sm truncate" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-                        Loading...
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Center - Playback Controls */}
-              <div className="flex items-center gap-4 sm:gap-6 flex-shrink-0">
-                <button className="text-white hover:text-gray-300 transition-colors p-2">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polygon points="18 2 18 22 2 12 18 2"/>
-                    <line x1="4" y1="12" x2="12" y2="12"/>
-                  </svg>
-                </button>
-                <button 
-                  onClick={handlePrevious}
-                  disabled={tracks.length === 0}
-                  className="text-white hover:text-gray-300 transition-colors p-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <PreviousIcon size={20} />
-                </button>
-                <button 
-                  onClick={togglePlay}
-                  disabled={!currentTrack}
-                  className="text-white hover:text-gray-300 transition-colors p-3 bg-white/10 hover:bg-white/20 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={
-                    currentTrack?.source === 'youtube' || currentTrack?.externalUrl?.includes('youtube.com') 
-                      ? 'Open in YouTube' 
-                      : currentTrack?.source === 'soundcloud' || currentTrack?.externalUrl?.includes('soundcloud.com')
-                      ? 'Open in SoundCloud'
-                      : currentTrack?.source === 'spotify' || currentTrack?.externalUrl?.includes('spotify.com')
-                      ? 'Use Spotify player below'
-                      : 'Play/Pause'
-                  }
-                >
-                  {isPlaying ? (
-                    <PauseIcon size={24} />
-                  ) : (
-                    <PlayIcon size={24} />
-                  )}
-                </button>
-                <button 
-                  onClick={handleNext}
-                  disabled={tracks.length === 0}
-                  className="text-white hover:text-gray-300 transition-colors p-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <NextIcon size={20} />
-                </button>
-                <button className="text-white hover:text-gray-300 transition-colors p-2">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                  </svg>
-                </button>
-              </div>
-
-              {/* Right Side - Streak and Volume */}
-              <div className="hidden lg:flex items-center gap-6 flex-shrink-0">
-                {/* Streak */}
-                <div className="flex items-center gap-2 text-white text-sm">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
-                  <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>3 week streak</span>
-                </div>
-                
-                {/* Volume Control */}
-                <div className="flex items-center gap-3">
-                  <button className="text-white hover:text-gray-300 transition-colors p-1">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
-                    </svg>
-                  </button>
-                  <div className="w-24">
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={volume}
-                      onChange={(e) => setVolume(Number(e.target.value))}
-                      className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                      style={{
-                        background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${volume}%, #374151 ${volume}%, #374151 100%)`
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
 

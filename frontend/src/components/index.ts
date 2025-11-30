@@ -8,6 +8,7 @@ export { default as AIModeSection } from './AIModeSection';
 export { default as ProtectedRoute } from './ProtectedRoute';
 export { default as SpotifyEmbed } from './SpotifyEmbed';
 export { default as GlobalSpotifyPlayer } from './GlobalSpotifyPlayer';
+export { default as GlobalHeader } from './GlobalHeader';
 export type { Feature } from './FeatureSection';
 
 // Export icons

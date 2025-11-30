@@ -24,7 +24,7 @@ const Hero: React.FC = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-12 relative z-10 py-16 sm:py-20 lg:py-32">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center relative">
           {/* Left side - Content */}
-          <div className="text-white z-20 text-center lg:text-left">
+          <div className="hero-content text-white z-20 text-center lg:text-left">
             <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-tight mb-4 sm:mb-6" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
               Music made<br className="hidden sm:block" />
               <span className="relative inline-block mt-1 sm:mt-0">
@@ -45,7 +45,7 @@ const Hero: React.FC = () => {
           </div>
 
           {/* Right side - Illustration overlapping gradient */}
-          <div className="relative w-full lg:w-1/2 flex items-center justify-center lg:justify-end lg:absolute lg:right-0 lg:top-1/2 lg:-translate-y-1/2 mt-8 lg:mt-0">
+          <div className="hero-illustration relative w-full lg:w-1/2 flex items-center justify-center lg:justify-end lg:absolute lg:right-0 lg:top-1/2 lg:-translate-y-1/2 mt-8 lg:mt-0">
             <div className="relative w-full max-w-md sm:max-w-lg">
               <HeroIllustration />
             </div>

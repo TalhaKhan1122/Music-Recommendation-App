@@ -24,7 +24,7 @@ const AIModeSection: React.FC = () => {
         {/* Bottom Section - Feature Card */}
         <div className="relative max-w-6xl mx-auto">
           <div 
-            className="rounded-3xl sm:rounded-[40px] p-6 sm:p-8 lg:p-12 relative overflow-hidden"
+            className="ai-card rounded-3xl sm:rounded-[40px] p-6 sm:p-8 lg:p-12 relative overflow-hidden"
             style={{
               background: 'linear-gradient(135deg, #1a1a1a 0%, #1a1a1a 50%, #2d1b3d 100%)',
               boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
@@ -40,7 +40,7 @@ const AIModeSection: React.FC = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 relative z-10 items-center">
               {/* Left Side - Text */}
-              <div className="text-white">
+              <div className="ai-text text-white">
                 <h3 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 sm:mb-6" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
                   The first music app powered by AI mode recognition
                 </h3>

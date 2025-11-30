@@ -1,49 +1,13 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth, useSpotifyPlayer } from '../context';
-import { MenuIcon, LogoutIcon } from '../components/icons';
+import { useNavigate } from 'react-router-dom';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { logout, user } = useAuth();
-  const { stopPlayer } = useSpotifyPlayer();
-
-  const handleLogout = () => {
-    stopPlayer();
-    logout();
-    navigate('/');
-  };
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ 
       background: 'linear-gradient(to bottom, #0a0a0a 0%, #1a0a1a 100%)'
     }}>
-      {/* Top Right Menu and Logout */}
-      <div className="absolute top-6 right-6 z-50 flex items-center gap-4">
-        {/* User Email Display */}
-        {user && (
-          <div className="hidden sm:block text-white text-sm opacity-70">
-            {user.email}
-          </div>
-        )}
-        
-        {/* Menu Icon */}
-        <Link to="/" className="text-white hover:text-gray-300 transition-colors inline-block p-2 hover:bg-white/10 rounded-lg">
-          <MenuIcon size={24} />
-        </Link>
-
-        {/* Logout Button */}
-        <button
-          onClick={handleLogout}
-          className="text-white hover:text-red-400 transition-colors inline-flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-red-500/20 border border-red-500/30 hover:border-red-500/50 transition-all"
-          style={{ 
-            fontFamily: 'system-ui, -apple-system, sans-serif'
-          }}
-        >
-          <LogoutIcon size={18} />
-          <span className="hidden sm:inline text-sm font-medium">Logout</span>
-        </button>
-      </div>
 
       <div className="container mx-auto px-6 py-12 max-w-7xl">
         {/* Main Content Grid */}
