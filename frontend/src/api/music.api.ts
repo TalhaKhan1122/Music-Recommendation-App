@@ -128,6 +128,29 @@ export interface PlaylistDetail extends PlaylistSummary {
   tracks: PlaylistTrack[];
 }
 
+export interface LyricsSearchResult {
+  id: string;
+  name: string;
+  artists: string;
+  album: string;
+  albumImage: string;
+  previewUrl: string | null;
+  externalUrl: string;
+  duration: number;
+  popularity: number;
+  source: 'spotify';
+  similarity: number;
+  lyricsSnippet?: string;
+}
+
+export interface LyricsSearchResponse {
+  success: boolean;
+  data: {
+    tracks: LyricsSearchResult[];
+    totalResults: number;
+  };
+}
+
 const normalizePlaylistDetail = (playlist: any): PlaylistDetail => ({
   id: playlist.id || playlist._id,
   name: playlist.name,
@@ -774,5 +797,52 @@ export const getArtistById = async (artistId: string, topTrackLimit?: number): P
   }
 
   return result.data;
+};
+
+/**
+ * Search for tracks by lyrics/words
+ * @param query - The lyrics/words the user remembers
+ * @param limit - Maximum number of results (default: 10)
+ */
+export const searchTracksByLyrics = async (
+  query: string,
+  limit: number = 10
+): Promise<LyricsSearchResponse> => {
+  const token = localStorage.getItem('token');
+
+  if (!token) {
+    throw new Error('No authentication token found. Please log in again.');
+  }
+
+  const url = new URL(`${API_BASE_URL}/music/lyrics/search`);
+  url.searchParams.append('q', query);
+  url.searchParams.append('limit', limit.toString());
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      const errorMessage = result?.message || `Failed to search tracks by lyrics (Status: ${response.status})`;
+      const error = new Error(errorMessage);
+      (error as any).status = response.status;
+      throw error;
+    }
+
+    return result;
+  } catch (error: any) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error('🌐 Network error - Is the backend server running?');
+      throw new Error('Cannot connect to server. Please make sure the backend is running on http://localhost:5000');
+    }
+    throw error;
+  }
 };
 

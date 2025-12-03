@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import type { ArtistMetadata, Track } from '../api/music.api';
 import { getArtistById } from '../api/music.api';
-import { SpotifyIcon, ArrowBackIcon } from '../components/icons';
+import { SpotifyIcon } from '../components/icons';
 import { useSpotifyPlayer, useFollowedArtists } from '../context';
 
 interface ArtistDetailLocationState {
@@ -221,19 +221,6 @@ const ArtistDetail: React.FC = () => {
       }`}
     >
       <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white/70 transition-colors hover:bg-white/10"
-          >
-            <ArrowBackIcon size={20} />
-            Back
-          </button>
-          <div className="text-xs uppercase tracking-[0.35em] text-white/40">
-            {category ? `${category}` : 'Artist Overview'}
-          </div>
-        </div>
 
         <section className="grid gap-8 lg:grid-cols-[320px,1fr]">
           <div className="space-y-4">
@@ -263,15 +250,6 @@ const ArtistDetail: React.FC = () => {
               >
                 {isArtistFollowed ? 'Following' : 'Follow'}
               </button>
-              <a
-                href={artist.spotifyUrl ?? '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs uppercase tracking-[0.3em] text-white/80 transition-colors hover:bg-white/10"
-              >
-                <SpotifyIcon size={18} />
-                View on Spotify
-              </a>
             </div>
           </div>
 

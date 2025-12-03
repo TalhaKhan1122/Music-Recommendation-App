@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "lint": "eslint src --ext .ts",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "import-lyrics": "tsx src/scripts/importLyrics.ts"
   },
   "keywords": [],
   "author": "",
