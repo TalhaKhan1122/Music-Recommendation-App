@@ -4,7 +4,6 @@ import { toast } from 'react-toastify';
 import { getTracksByMood } from '../api/music.api';
 import * as faceLandmarksDetection from '@tensorflow-models/face-landmarks-detection';
 import * as tf from '@tensorflow/tfjs';
-import { ArrowBackIcon } from '../components/icons';
 
 const AIMode: React.FC = () => {
   const navigate = useNavigate();
@@ -933,16 +932,6 @@ const AIMode: React.FC = () => {
     <div className="min-h-screen relative overflow-hidden" style={{ 
       background: 'linear-gradient(to bottom, #0a0a0a 0%, #1a0a1a 100%)'
     }}>
-      {/* Back Button */}
-      <div className="absolute top-6 left-6 z-50">
-        <button 
-          onClick={() => navigate('/dashboard')}
-          className="text-white hover:text-gray-300 transition-colors p-2 hover:bg-white/10 rounded-lg"
-        >
-          <ArrowBackIcon size={24} />
-        </button>
-      </div>
-
       <div className="container mx-auto px-6 py-12 max-w-4xl">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-4" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>

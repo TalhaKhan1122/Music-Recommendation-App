@@ -57,8 +57,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const storedAuth = getStoredAuth();
   const [user, setUser] = useState<User | null>(storedAuth.user);
   const [token, setToken] = useState<string | null>(storedAuth.token);
-  // If we have stored auth, user is already logged in, so isLoading = false
-  const [isLoading, setIsLoading] = useState(!(storedAuth.token && storedAuth.user));
+  // If we have stored auth, we need to verify it (isLoading = true)
+  // If we don't have stored auth, there's nothing to verify (isLoading = false)
+  const [isLoading, setIsLoading] = useState(!!(storedAuth.token && storedAuth.user));
 
   // Debug logging in useEffect to avoid render issues
   useEffect(() => {
@@ -81,6 +82,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
     } else {
       console.log('❌ No token or user found, user not authenticated');
+      // No stored auth, so we're done loading
+      setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -170,6 +173,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = () => {
     setUser(null);
     setToken(null);
+    setIsLoading(false);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
   };
