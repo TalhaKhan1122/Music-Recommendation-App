@@ -144,3 +144,4 @@ After importing lyrics:
 - The word frequency calculation happens automatically during import
 - MongoDB indexes are created automatically for faster searches
 
+

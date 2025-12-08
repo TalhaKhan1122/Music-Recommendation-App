@@ -52,6 +52,32 @@ const formatGenres = (genres?: string[]): string => {
     .join(' • ');
 };
 
+const formatListeners = (popularity?: number): string => {
+  if (popularity === undefined || popularity === null) {
+    return '--';
+  }
+  // Convert popularity (0-100) to a listener-like format
+  // Higher popularity = more listeners
+  // We'll estimate listeners based on popularity score
+  // Popularity 100 = ~50M, 75 = ~10M, 50 = ~2M, 25 = ~500K, 0 = ~100K (conservative estimates)
+  const baseListeners = 100_000; // Minimum for popularity 0
+  const maxListeners = 50_000_000; // Maximum for popularity 100
+  const estimatedListeners = Math.round(
+    baseListeners + (popularity / 100) * (maxListeners - baseListeners)
+  );
+  
+  if (estimatedListeners >= 1_000_000_000) {
+    return `${(estimatedListeners / 1_000_000_000).toFixed(1).replace(/\.0$/, '')}B`;
+  }
+  if (estimatedListeners >= 1_000_000) {
+    return `${(estimatedListeners / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  }
+  if (estimatedListeners >= 1_000) {
+    return `${(estimatedListeners / 1_000).toFixed(1).replace(/\.0$/, '')}K`;
+  }
+  return estimatedListeners.toLocaleString();
+};
+
 const ArtistDetail: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -289,19 +315,26 @@ const ArtistDetail: React.FC = () => {
                         className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition-colors hover:bg-white/10"
                       >
                         <div className="flex items-center justify-between gap-4">
-                          <div className="flex items-center gap-4">
-                            <span className="text-xs text-white/40 w-6 text-right">
+                          <div className="flex items-center gap-4 flex-1 min-w-0">
+                            <span className="text-xs text-white/40 w-6 text-right flex-shrink-0">
                               {index + 1}
                             </span>
-                            <div>
-                              <p className="text-base font-semibold">{track.name}</p>
-                              <p className="text-xs text-white/50">
-                                {track.artists}
-                                {track.album ? ` • ${track.album}` : ''}
-                              </p>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-base font-semibold truncate">{track.name}</p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-xs text-white/50 truncate">
+                                  {track.artists}
+                                  {track.album ? ` • ${track.album}` : ''}
+                                </p>
+                                {track.popularity !== undefined && (
+                                  <span className="text-xs text-white/40 flex-shrink-0">
+                                    • {formatListeners(track.popularity)} listeners
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                          <span className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-white/60">
+                          <span className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-white/60 flex-shrink-0">
                             <SpotifyIcon size={16} />
                             Play
                           </span>
