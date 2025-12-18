@@ -1109,3 +1109,4 @@ export const getArtistByIdController = async (req: AuthRequest, res: Response): 
   }
 };
 
+

@@ -8,7 +8,7 @@ import type {
   SpotifyCatalogSearchResult,
   Track,
 } from '../api/music.api';
-import { getTopArtistsShowcase, searchSpotifyCatalog } from '../api/music.api';
+import { getTopArtistsShowcase, searchSpotifyCatalog, getTracksByMood } from '../api/music.api';
 import { SpotifyIcon } from '../components/icons';
 import { useSpotifyPlayer, useFollowedArtists } from '../context';
 
@@ -105,33 +105,32 @@ const LoaderCard: React.FC<LoaderCardProps> = ({
 );
 
 const ArtistCardSkeleton: React.FC = () => (
-  <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/5 animate-pulse">
-    <div className="relative h-52 overflow-hidden bg-gradient-to-br from-purple-500/20 via-indigo-500/20 to-slate-900/40" />
-    <div className="space-y-4 p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 space-y-2">
-          <div className="h-5 w-3/4 rounded bg-white/10" />
-          <div className="h-3 w-full rounded bg-white/5" />
+  <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 animate-pulse">
+    <div className="relative h-36 overflow-hidden bg-gradient-to-br from-purple-500/20 via-indigo-500/20 to-slate-900/40" />
+    <div className="space-y-2.5 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 space-y-1.5">
+          <div className="h-4 w-3/4 rounded bg-white/10" />
+          <div className="h-2.5 w-full rounded bg-white/5" />
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <div className="h-6 w-20 rounded-full bg-white/10" />
-          <div className="space-y-1">
-            <div className="h-3 w-24 rounded bg-white/5" />
-            <div className="h-3 w-20 rounded bg-white/5" />
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="h-5 w-16 rounded-full bg-white/10" />
+          <div className="space-y-0.5">
+            <div className="h-2.5 w-20 rounded bg-white/5" />
+            <div className="h-2.5 w-16 rounded bg-white/5" />
           </div>
         </div>
       </div>
-      <div className="space-y-2">
-        <div className="h-3 w-24 rounded bg-white/5" />
-        <div className="space-y-1">
-          <div className="h-4 w-full rounded bg-white/5" />
-          <div className="h-4 w-5/6 rounded bg-white/5" />
-          <div className="h-4 w-4/6 rounded bg-white/5" />
+      <div className="space-y-1.5">
+        <div className="h-2.5 w-16 rounded bg-white/5" />
+        <div className="space-y-0.5">
+          <div className="h-3 w-full rounded bg-white/5" />
+          <div className="h-3 w-5/6 rounded bg-white/5" />
         </div>
       </div>
-      <div className="flex items-center justify-between gap-3">
-        <div className="h-4 w-32 rounded bg-white/5" />
-        <div className="h-4 w-24 rounded bg-white/5" />
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <div className="h-3 w-24 rounded bg-white/5" />
+        <div className="h-3 w-16 rounded bg-white/5" />
       </div>
     </div>
   </div>
@@ -156,6 +155,16 @@ const Artists: React.FC = () => {
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [hasSearchResults, setHasSearchResults] = useState<boolean>(false);
+  const [popularTracks, setPopularTracks] = useState<Record<string, Track[]>>({
+    punjabi: [],
+    english: [],
+    global: [],
+  });
+  const [isLoadingPopularTracks, setIsLoadingPopularTracks] = useState<Record<string, boolean>>({
+    punjabi: false,
+    english: false,
+    global: false,
+  });
   const { playTrack, spotifyReference: activeSpotifyReference } = useSpotifyPlayer();
   const { isFollowed, toggleFollow, followedArtists } = useFollowedArtists();
 
@@ -203,6 +212,36 @@ const Artists: React.FC = () => {
   useEffect(() => {
     fetchArtists();
   }, [fetchArtists]);
+
+  const fetchPopularTracks = useCallback(async (category: 'punjabi' | 'english' | 'global') => {
+    setIsLoadingPopularTracks((prev) => ({ ...prev, [category]: true }));
+    try {
+      // Use different moods for different categories to get relevant popular tracks
+      const moodMap: Record<string, string> = {
+        punjabi: 'excited', // High energy for Punjabi
+        english: 'happy', // Popular English tracks
+        global: 'excited', // Trending global hits
+      };
+      
+      const mood = moodMap[category] || 'excited';
+      const response = await getTracksByMood(mood, 12, 'recommendations', 'spotify');
+      setPopularTracks((prev) => ({ ...prev, [category]: response.data.tracks }));
+    } catch (err: any) {
+      console.error(`Error fetching popular tracks for ${category}:`, err);
+      // Don't show error toast, just log it
+    } finally {
+      setIsLoadingPopularTracks((prev) => ({ ...prev, [category]: false }));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasSearchResults) {
+      // Fetch popular tracks for each category
+      fetchPopularTracks('punjabi');
+      fetchPopularTracks('english');
+      fetchPopularTracks('global');
+    }
+  }, [fetchPopularTracks, hasSearchResults]);
 
   const handleRefresh = useCallback(() => {
     requestedLimitRef.current = {};
@@ -340,11 +379,18 @@ const Artists: React.FC = () => {
   };
 
   const deriveSpotifyReference = (track: Track): string | null => {
-    if (track.externalUrl) {
+    // Prefer full Spotify URL
+    if (track.externalUrl && track.externalUrl.trim() !== '') {
       return track.externalUrl;
     }
-    if (track.id) {
-      return track.id;
+    // If we only have an ID, construct the full Spotify URL
+    if (track.id && track.id.trim() !== '') {
+      // Check if it's already a URL
+      if (track.id.includes('spotify.com') || track.id.includes('http')) {
+        return track.id;
+      }
+      // Construct full URL from track ID
+      return `https://open.spotify.com/track/${track.id}`;
     }
     return null;
   };
@@ -359,6 +405,22 @@ const Artists: React.FC = () => {
 
     playTrack(track, reference);
     toast.info(`Playing ${track.name} on Spotify`);
+  };
+
+  const handlePlayTrack = (track: Track) => {
+    const reference = deriveSpotifyReference(track);
+    if (reference) {
+      playTrack(track, reference);
+      toast.info(`Playing ${track.name}`, {
+        position: 'top-right',
+        autoClose: 2000,
+      });
+    } else {
+      toast.error('Unable to load Spotify player for this track. Missing track URL.', {
+        position: 'top-right',
+        autoClose: 3000,
+      });
+    }
   };
 
   const hasActivePlayer = Boolean(activeSpotifyReference);
@@ -413,9 +475,9 @@ const Artists: React.FC = () => {
         tabIndex={0}
         onClick={() => navigate(`/artists/${artist.id}`, { state: { artist, category: categoryTitle } })}
         onKeyDown={handleCardKeyDown}
-        className="group overflow-hidden rounded-3xl border border-white/10 bg-white/5 text-left transition-transform hover:-translate-y-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
+        className="group overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-left transition-transform hover:-translate-y-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
       >
-        <div className="relative h-52 overflow-hidden">
+        <div className="relative h-36 overflow-hidden">
           {artist.image ? (
             <img
               src={artist.image}
@@ -424,23 +486,23 @@ const Artists: React.FC = () => {
               loading="lazy"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-500/40 via-indigo-500/40 to-slate-900 text-white/70">
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-500/40 via-indigo-500/40 to-slate-900 text-white/70 text-xs">
               No Image
             </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
         </div>
-        <div className="space-y-4 p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-semibold">{artist.name}</h3>
-              <p className="text-xs text-white/60">{formatGenres(artist.genres)}</p>
+        <div className="space-y-2.5 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base font-semibold truncate">{artist.name}</h3>
+              <p className="text-[0.65rem] text-white/60 mt-0.5 line-clamp-1">{formatGenres(artist.genres)}</p>
             </div>
-            <div className="flex flex-col items-end gap-2">
+            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
               <button
                 type="button"
                 onClick={handleFollowClick}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[0.6rem] uppercase tracking-[0.3em] transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[0.55rem] uppercase tracking-[0.25em] transition-colors ${
                   isArtistFollowed
                     ? 'border-purple-400 bg-purple-500/30 text-purple-100 hover:bg-purple-500/40'
                     : 'border-white/20 bg-white/10 text-white/80 hover:bg-white/20'
@@ -449,32 +511,32 @@ const Artists: React.FC = () => {
               >
                 {isArtistFollowed ? 'Following' : 'Follow'}
               </button>
-              <div className="text-right text-xs text-white/50">
-                <p>{formatFollowers(artist.followers)} followers</p>
-                <p>Popularity {artist.popularity ?? '--'}</p>
+              <div className="text-right text-[0.65rem] text-white/50">
+                <p className="leading-tight">{formatFollowers(artist.followers)}</p>
+                <p className="leading-tight">Pop. {artist.popularity ?? '--'}</p>
               </div>
             </div>
           </div>
 
           {artist.topTracks?.length ? (
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-2">Top Tracks</p>
-              <ul className="space-y-1 text-sm text-white/80">
-                {artist.topTracks.slice(0, 3).map((track: Track, index: number) => (
-                  <li key={track.id || `${artist.id}-${index}`}>- {track.name}</li>
+              <p className="text-[0.6rem] uppercase tracking-[0.25em] text-white/40 mb-1.5">Top Tracks</p>
+              <ul className="space-y-0.5 text-[0.75rem] text-white/80">
+                {artist.topTracks.slice(0, 2).map((track: Track, index: number) => (
+                  <li key={track.id || `${artist.id}-${index}`} className="truncate">• {track.name}</li>
                 ))}
               </ul>
             </div>
           ) : (
-            <p className="text-xs text-white/40">Top tracks loading...</p>
+            <p className="text-[0.65rem] text-white/40">Loading tracks...</p>
           )}
 
-          <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.3em] text-white/60">
-            <span className="inline-flex items-center gap-2">
-              <SpotifyIcon size={16} />
-              Spotify Artist
+          <div className="flex items-center justify-between gap-2 text-[0.6rem] uppercase tracking-[0.25em] text-white/60 pt-1">
+            <span className="inline-flex items-center gap-1.5">
+              <SpotifyIcon size={12} />
+              <span>Spotify</span>
             </span>
-            <span className="text-purple-300">{'View Details ->'}</span>
+            <span className="text-purple-300 text-[0.65rem]">{'View ->'}</span>
           </div>
         </div>
       </div>
@@ -508,7 +570,7 @@ const Artists: React.FC = () => {
             {searchResults.artists.length === 0 ? (
               <p className="text-sm text-white/60">No matching artists found.</p>
             ) : (
-              <div className="grid gap-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {searchResults.artists.map((artist: ArtistMetadata) =>
                   renderArtistCard(artist, 'Search Results'),
                 )}
@@ -662,6 +724,213 @@ const Artists: React.FC = () => {
             )}
 
             {renderSearchResults()}
+
+            {/* Popular Songs Sections for Each Category */}
+            {!hasSearchResults && (
+              <>
+                {/* Punjabi Popular Songs */}
+                <section className="space-y-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.35em] text-white/40">Punjabi</p>
+                      <h2 className="text-2xl font-semibold">Popular Punjabi Songs</h2>
+                    </div>
+                    <p className="text-sm text-white/50 sm:max-w-xl">
+                      Top trending tracks from Punjabi artists.
+                    </p>
+                  </div>
+
+                  {isLoadingPopularTracks.punjabi ? (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {Array.from({ length: 8 }).map((_, index) => (
+                        <div
+                          key={`punjabi-track-skeleton-${index}`}
+                          className="rounded-xl border border-white/10 bg-white/5 p-4 animate-pulse"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="h-12 w-12 rounded-lg bg-white/10 flex-shrink-0" />
+                            <div className="flex-1 space-y-2">
+                              <div className="h-4 w-3/4 rounded bg-white/10" />
+                              <div className="h-3 w-1/2 rounded bg-white/5" />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : popularTracks.punjabi.length > 0 ? (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {popularTracks.punjabi.slice(0, 12).map((track) => (
+                        <button
+                          key={track.id}
+                          type="button"
+                          onClick={() => handlePlayTrack(track)}
+                          className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4 text-left transition-all hover:border-white/20 hover:bg-white/10 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
+                        >
+                          <div className="flex items-center gap-3">
+                            {track.albumImage ? (
+                              <img
+                                src={track.albumImage}
+                                alt={track.album}
+                                className="h-12 w-12 rounded-lg object-cover flex-shrink-0"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center flex-shrink-0">
+                                <SpotifyIcon size={20} className="text-white/60" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-white truncate group-hover:text-purple-300 transition-colors">
+                                {track.name}
+                              </p>
+                              <p className="text-xs text-white/60 truncate mt-0.5">{track.artists}</p>
+                            </div>
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                              <SpotifyIcon size={16} className="text-white/60" />
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
+
+                {/* English Popular Songs */}
+                <section className="space-y-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.35em] text-white/40">English</p>
+                      <h2 className="text-2xl font-semibold">Popular English Songs</h2>
+                    </div>
+                    <p className="text-sm text-white/50 sm:max-w-xl">
+                      Chart-topping hits from international artists.
+                    </p>
+                  </div>
+
+                  {isLoadingPopularTracks.english ? (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {Array.from({ length: 8 }).map((_, index) => (
+                        <div
+                          key={`english-track-skeleton-${index}`}
+                          className="rounded-xl border border-white/10 bg-white/5 p-4 animate-pulse"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="h-12 w-12 rounded-lg bg-white/10 flex-shrink-0" />
+                            <div className="flex-1 space-y-2">
+                              <div className="h-4 w-3/4 rounded bg-white/10" />
+                              <div className="h-3 w-1/2 rounded bg-white/5" />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : popularTracks.english.length > 0 ? (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {popularTracks.english.slice(0, 12).map((track) => (
+                        <button
+                          key={track.id}
+                          type="button"
+                          onClick={() => handlePlayTrack(track)}
+                          className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4 text-left transition-all hover:border-white/20 hover:bg-white/10 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
+                        >
+                          <div className="flex items-center gap-3">
+                            {track.albumImage ? (
+                              <img
+                                src={track.albumImage}
+                                alt={track.album}
+                                className="h-12 w-12 rounded-lg object-cover flex-shrink-0"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center flex-shrink-0">
+                                <SpotifyIcon size={20} className="text-white/60" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-white truncate group-hover:text-purple-300 transition-colors">
+                                {track.name}
+                              </p>
+                              <p className="text-xs text-white/60 truncate mt-0.5">{track.artists}</p>
+                            </div>
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                              <SpotifyIcon size={16} className="text-white/60" />
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
+
+                {/* Global Popular Songs */}
+                <section className="space-y-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.35em] text-white/40">Global</p>
+                      <h2 className="text-2xl font-semibold">Popular Global Songs</h2>
+                    </div>
+                    <p className="text-sm text-white/50 sm:max-w-xl">
+                      Worldwide hits from artists around the globe.
+                    </p>
+                  </div>
+
+                  {isLoadingPopularTracks.global ? (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {Array.from({ length: 8 }).map((_, index) => (
+                        <div
+                          key={`global-track-skeleton-${index}`}
+                          className="rounded-xl border border-white/10 bg-white/5 p-4 animate-pulse"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="h-12 w-12 rounded-lg bg-white/10 flex-shrink-0" />
+                            <div className="flex-1 space-y-2">
+                              <div className="h-4 w-3/4 rounded bg-white/10" />
+                              <div className="h-3 w-1/2 rounded bg-white/5" />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : popularTracks.global.length > 0 ? (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {popularTracks.global.slice(0, 12).map((track) => (
+                        <button
+                          key={track.id}
+                          type="button"
+                          onClick={() => handlePlayTrack(track)}
+                          className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4 text-left transition-all hover:border-white/20 hover:bg-white/10 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
+                        >
+                          <div className="flex items-center gap-3">
+                            {track.albumImage ? (
+                              <img
+                                src={track.albumImage}
+                                alt={track.album}
+                                className="h-12 w-12 rounded-lg object-cover flex-shrink-0"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center flex-shrink-0">
+                                <SpotifyIcon size={20} className="text-white/60" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-white truncate group-hover:text-purple-300 transition-colors">
+                                {track.name}
+                              </p>
+                              <p className="text-xs text-white/60 truncate mt-0.5">{track.artists}</p>
+                            </div>
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                              <SpotifyIcon size={16} className="text-white/60" />
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
+              </>
+            )}
+
             {error && (
               <div className="rounded-3xl border border-red-500/40 bg-red-500/10 px-6 py-4 text-sm text-red-200">
                 <div className="flex items-center justify-between gap-4">
@@ -678,7 +947,7 @@ const Artists: React.FC = () => {
             )}
 
             {isLoading && sections.length === 0 && (
-              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {Array.from({ length: INITIAL_LIMIT }).map((_, index) => (
                   <ArtistCardSkeleton key={`skeleton-${index}`} />
                 ))}
@@ -705,7 +974,7 @@ const Artists: React.FC = () => {
                     <p className="text-sm text-white/50 sm:max-w-xl">{section.description}</p>
                   </div>
 
-                  <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {visibleArtists.map((artist) => renderArtistCard(artist, section.title))}
                   </div>
 

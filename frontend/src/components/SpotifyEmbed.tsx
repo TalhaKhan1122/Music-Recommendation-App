@@ -107,9 +107,20 @@ const SpotifyEmbed: React.FC<SpotifyEmbedProps> = ({ urlOrId, onEmbedChange, aut
       console.log('🎵 SpotifyEmbed: Auto-loading with urlOrId:', urlOrId);
       console.log('🎵 SpotifyEmbed: urlOrId type:', typeof urlOrId);
       console.log('🎵 SpotifyEmbed: urlOrId length:', urlOrId.length);
-      setInput(urlOrId);
+      
+      // Ensure we have a valid URL format
+      let processedUrl = urlOrId.trim();
+      if (!processedUrl.includes('spotify.com') && !processedUrl.includes('spotify:')) {
+        // If it's just an ID, construct the full URL
+        if (/^[A-Za-z0-9]{15,}$/.test(processedUrl)) {
+          processedUrl = `https://open.spotify.com/track/${processedUrl}`;
+          console.log('🔧 Constructed full URL from ID:', processedUrl);
+        }
+      }
+      
+      setInput(processedUrl);
       // Parse and set embed data directly
-      const parsed = parseSpotifyInput(urlOrId);
+      const parsed = parseSpotifyInput(processedUrl);
       console.log('🎵 SpotifyEmbed: Parsed result:', parsed);
       if (parsed) {
         const embedUrl = buildEmbedUrl(parsed.type, parsed.id, autoPlay);
@@ -117,6 +128,10 @@ const SpotifyEmbed: React.FC<SpotifyEmbedProps> = ({ urlOrId, onEmbedChange, aut
         console.log('🎵 SpotifyEmbed: Type:', parsed.type);
         console.log('🎵 SpotifyEmbed: ID:', parsed.id);
         console.log('🎵 SpotifyEmbed: Embed URL:', embedUrl);
+        
+        // Increment autoplay token to force iframe reload
+        setAutoplayToken((prev) => prev + 1);
+        
         setEmbedData({
           type: parsed.type,
           id: parsed.id,
@@ -134,6 +149,7 @@ const SpotifyEmbed: React.FC<SpotifyEmbedProps> = ({ urlOrId, onEmbedChange, aut
         }
       } else {
         console.error('⚠️ SpotifyEmbed: Could not parse urlOrId:', urlOrId);
+        console.error('⚠️ SpotifyEmbed: Processed URL:', processedUrl);
         console.error('⚠️ SpotifyEmbed: Input value:', JSON.stringify(urlOrId));
         setError('Invalid Spotify URL or ID');
         setEmbedData(null);
@@ -143,7 +159,7 @@ const SpotifyEmbed: React.FC<SpotifyEmbedProps> = ({ urlOrId, onEmbedChange, aut
       setEmbedData(null);
       setError(null);
     }
-  }, [urlOrId, onEmbedChange]);
+  }, [urlOrId, autoPlay]);
 
   useEffect(() => {
     if (!embedData) {
@@ -162,12 +178,8 @@ const SpotifyEmbed: React.FC<SpotifyEmbedProps> = ({ urlOrId, onEmbedChange, aut
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPlay, autoplayToken]);
 
-  useEffect(() => {
-    if (!urlOrId) {
-      return;
-    }
-    setAutoplayToken((token) => token + 1);
-  }, [urlOrId]);
+  // autoplayToken is now incremented in the main useEffect above
+  // This ensures the iframe key changes and forces a reload when urlOrId changes
 
   const iframeHeight =
     embedData?.type === 'track'
@@ -225,6 +237,7 @@ const SpotifyEmbed: React.FC<SpotifyEmbedProps> = ({ urlOrId, onEmbedChange, aut
         >
           <div className="w-full">
             <iframe
+              key={`${embedData.id}-${autoplayToken}`}
               src={embedData.url}
               width="100%"
               height={iframeHeight}

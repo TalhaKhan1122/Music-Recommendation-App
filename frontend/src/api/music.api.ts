@@ -799,6 +799,7 @@ export const getArtistById = async (artistId: string, topTrackLimit?: number): P
   return result.data;
 };
 
+
 /**
  * Search for tracks by lyrics/words
  * @param query - The lyrics/words the user remembers

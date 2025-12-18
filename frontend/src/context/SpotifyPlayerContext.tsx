@@ -25,8 +25,12 @@ export const SpotifyPlayerProvider: React.FC<SpotifyPlayerProviderProps> = ({ ch
   const [spotifyReference, setSpotifyReference] = useState<string | null>(null);
 
   const playTrack = useCallback((track: Track, reference: string) => {
+    console.log('🎵 SpotifyPlayerContext: playTrack called');
+    console.log('   Track:', track.name);
+    console.log('   Reference:', reference);
     setCurrentTrack(track);
     setSpotifyReference(reference);
+    console.log('✅ SpotifyPlayerContext: Track and reference set');
   }, []);
 
   const stopPlayer = useCallback(() => {

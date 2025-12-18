@@ -190,9 +190,17 @@ const GlobalSpotifyPlayer: React.FC = () => {
     setShowActionMenu(false);
   };
 
+  useEffect(() => {
+    console.log('🎵 GlobalSpotifyPlayer: spotifyReference changed:', spotifyReference);
+    console.log('🎵 GlobalSpotifyPlayer: currentTrack:', currentTrack?.name);
+  }, [spotifyReference, currentTrack]);
+
   if (!spotifyReference || !currentTrack) {
+    console.log('🎵 GlobalSpotifyPlayer: Not rendering - missing reference or track');
     return null;
   }
+
+  console.log('🎵 GlobalSpotifyPlayer: Rendering player with reference:', spotifyReference);
 
   return (
     <div className="fixed bottom-4 left-0 right-0 z-50 flex justify-center px-3 md:px-10">
