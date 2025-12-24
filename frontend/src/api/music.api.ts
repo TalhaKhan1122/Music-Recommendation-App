@@ -847,3 +847,64 @@ export const searchTracksByLyrics = async (
   }
 };
 
+/**
+ * Get track recommendations based on seed artist IDs (for mix stations)
+ * @param artistIds - Array of Spotify artist IDs
+ * @param limit - Maximum number of tracks to fetch (default: 20)
+ * @param options - Optional audio feature targets
+ */
+export const getRecommendationsByArtists = async (
+  artistIds: string[],
+  limit: number = 20,
+  options?: {
+    target_energy?: number;
+    target_danceability?: number;
+    target_valence?: number;
+  }
+): Promise<{ tracks: Track[]; count: number; seedArtists: string[] }> => {
+  const token = ensureAuthToken();
+
+  const searchParams = new URLSearchParams({
+    artistIds: artistIds.join(','),
+    limit: String(limit),
+  });
+
+  if (options?.target_energy !== undefined) {
+    searchParams.set('target_energy', String(options.target_energy));
+  }
+  if (options?.target_danceability !== undefined) {
+    searchParams.set('target_danceability', String(options.target_danceability));
+  }
+  if (options?.target_valence !== undefined) {
+    searchParams.set('target_valence', String(options.target_valence));
+  }
+
+  const url = `${API_BASE_URL}/music/recommendations/artists?${searchParams.toString()}`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      const errorMessage = result?.message || `Failed to get recommendations (Status: ${response.status})`;
+      const error = new Error(errorMessage);
+      (error as any).status = response.status;
+      throw error;
+    }
+
+    return result.data;
+  } catch (error: any) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error('Cannot connect to server. Please make sure the backend is running on http://localhost:5000');
+    }
+    throw error;
+  }
+};
+

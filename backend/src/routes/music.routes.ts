@@ -17,6 +17,7 @@ import {
   followArtistController,
   unfollowArtistController,
   getArtistByIdController,
+  getRecommendationsByArtistsController,
 } from '../controllers/music.controller';
 import { authenticate } from '../middleware';
 
@@ -28,6 +29,13 @@ const router = Router();
  * @access  Private
  */
 router.get('/tracks', authenticate, getTracks);
+
+/**
+ * @route   GET /api/music/recommendations/artists
+ * @desc    Get track recommendations based on seed artist IDs (for mix stations)
+ * @access  Private
+ */
+router.get('/recommendations/artists', authenticate, getRecommendationsByArtistsController);
 
 /**
  * @route   GET /api/music/artists/showcase

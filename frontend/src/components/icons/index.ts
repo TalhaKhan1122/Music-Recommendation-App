@@ -2,6 +2,7 @@ export { GoogleIcon } from './GoogleIcon';
 export { YouTubeIcon } from './YouTubeIcon';
 export { SoundCloudIcon } from './SoundCloudIcon';
 export { SpotifyIcon } from './SpotifyIcon';
+export { MicIcon } from './MicIcon';
 export { CloseIcon } from './CloseIcon';
 export { ArrowBackIcon } from './ArrowBackIcon';
 export { PlayIcon } from './PlayIcon';

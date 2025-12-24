@@ -6,238 +6,329 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ 
-      background: 'linear-gradient(to bottom, #0a0a0a 0%, #1a0a1a 100%)'
+      background: 'linear-gradient(135deg, #0a0a0a 0%, #1a0a1a 25%, #0f0f1a 50%, #1a0a1a 75%, #0a0a0a 100%)'
     }}>
+      {/* Animated background particles */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {[...Array(20)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute rounded-full opacity-20"
+            style={{
+              width: `${Math.random() * 4 + 2}px`,
+              height: `${Math.random() * 4 + 2}px`,
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              background: `hsl(${Math.random() * 60 + 270}, 70%, 70%)`,
+              animation: `float ${Math.random() * 10 + 10}s infinite ease-in-out`,
+              animationDelay: `${Math.random() * 5}s`,
+            }}
+          />
+        ))}
+      </div>
 
-      <div className="container mx-auto px-6 py-12 max-w-7xl">
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Left Panel - Go with AI Model */}
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) translateX(0px); }
+          33% { transform: translateY(-20px) translateX(10px); }
+          66% { transform: translateY(20px) translateX(-10px); }
+        }
+        @keyframes pulse-glow {
+          0%, 100% { opacity: 0.4; transform: scale(1); }
+          50% { opacity: 0.6; transform: scale(1.05); }
+        }
+        @keyframes shimmer {
+          0% { background-position: -1000px 0; }
+          100% { background-position: 1000px 0; }
+        }
+      `}</style>
+
+      <div className="container mx-auto px-6 py-12 max-w-6xl relative z-10">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold text-white mb-2" style={{ 
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            background: 'linear-gradient(135deg, #ffffff 0%, #a78bfa 50%, #ec4899 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}>
+            Welcome to Your Music Hub
+          </h1>
+          <p className="text-gray-400 text-sm">Choose your experience</p>
+        </div>
+
+        {/* Main Content Grid - Two Equal Cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl mx-auto">
+          {/* AI Mode Card */}
           <div 
             onClick={() => navigate('/ai-mode')}
-            className="lg:col-span-2 rounded-3xl p-8 relative overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform duration-300"
+            className="group relative rounded-2xl p-6 overflow-hidden cursor-pointer transform transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl"
             style={{ 
-              background: 'rgba(20, 20, 30, 0.6)',
-              backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              minHeight: '500px'
-            }}>
-            {/* Pink/Purple Glow Background */}
-            <div className="absolute inset-0 opacity-30" style={{
-              background: 'radial-gradient(circle at 30% 50%, #EC4899 0%, #A855F7 50%, transparent 70%)',
-            }}></div>
+              background: 'rgba(20, 20, 30, 0.7)',
+              backdropFilter: 'blur(30px)',
+              border: '2px solid rgba(236, 72, 153, 0.3)',
+              minHeight: '380px',
+              boxShadow: '0 20px 60px rgba(236, 72, 153, 0.2)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(236, 72, 153, 0.6)';
+              e.currentTarget.style.boxShadow = '0 25px 80px rgba(236, 72, 153, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(236, 72, 153, 0.3)';
+              e.currentTarget.style.boxShadow = '0 20px 60px rgba(236, 72, 153, 0.2)';
+            }}
+          >
+            {/* Animated Gradient Background */}
+            <div 
+              className="absolute inset-0 opacity-40"
+              style={{
+                background: 'radial-gradient(circle at 30% 40%, #EC4899 0%, #A855F7 40%, #7C3AED 70%, transparent 85%)',
+                animation: 'pulse-glow 4s ease-in-out infinite',
+              }}
+            ></div>
             
-            {/* Illustration Area - AI/Person at desk */}
-            <div className="relative z-10 h-full flex items-center justify-center">
-              <div className="relative w-full max-w-md">
-                {/* Person Illustration */}
-                <svg width="100%" height="400" viewBox="0 0 400 400" className="relative z-10">
-                  {/* Glow effect */}
-                  <circle cx="200" cy="200" r="150" fill="url(#pinkGradient)" opacity="0.4" />
-                  <defs>
-                    <radialGradient id="pinkGradient">
-                      <stop offset="0%" stopColor="#EC4899" />
-                      <stop offset="100%" stopColor="#A855F7" stopOpacity="0" />
-                    </radialGradient>
-                  </defs>
-                  
-                  {/* Desk */}
-                  <rect x="50" y="280" width="300" height="20" rx="4" fill="#9CA3AF" opacity="0.8" />
-                  
-                  {/* Computer Monitor */}
-                  <rect x="120" y="220" width="160" height="100" rx="8" fill="#1F2937" />
-                  <rect x="130" y="230" width="140" height="70" rx="4" fill="#111827" />
-                  <line x1="150" y1="250" x2="250" y2="250" stroke="#EC4899" strokeWidth="3" />
-                  <line x1="150" y1="270" x2="240" y2="270" stroke="#EC4899" strokeWidth="2" />
-                  
-                  {/* Keyboard */}
-                  <rect x="160" y="300" width="80" height="30" rx="4" fill="#374151" />
-                  
-                  {/* Person - Head */}
-                  <circle cx="200" cy="160" r="35" fill="#A855F7" />
-                  
-                  {/* Person - Headphones */}
-                  <ellipse cx="200" cy="145" rx="50" ry="25" fill="white" opacity="0.9" />
-                  <rect x="140" y="135" width="120" height="30" rx="15" fill="white" opacity="0.9" />
-                  
-                  {/* Person - Body */}
-                  <rect x="175" y="180" width="50" height="80" rx="25" fill="#A855F7" />
-                  
-                  {/* AI Icon/Sparkles */}
-                  <circle cx="250" cy="140" r="8" fill="#EC4899" opacity="0.8">
-                    <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite" />
-                  </circle>
-                  <circle cx="270" cy="150" r="6" fill="#A855F7" opacity="0.7">
-                    <animate attributeName="opacity" values="0.7;1;0.7" dur="1.5s" repeatCount="indefinite" />
-                  </circle>
+            {/* Shimmer effect */}
+            <div 
+              className="absolute inset-0 opacity-10"
+              style={{
+                background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)',
+                backgroundSize: '200% 100%',
+                animation: 'shimmer 3s infinite',
+              }}
+            ></div>
+            
+            {/* Content */}
+            <div className="relative z-10 h-full flex flex-col justify-between">
+              {/* Top Section - Icon and Title */}
+              <div>
+                <div className="mb-4">
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl mb-3"
+                    style={{
+                      background: 'linear-gradient(135deg, #EC4899 0%, #A855F7 100%)',
+                      boxShadow: '0 10px 30px rgba(236, 72, 153, 0.4)',
+                    }}
+                  >
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M2 17L12 22L22 17" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M2 12L12 17L22 12" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
-            </div>
-            
-            {/* Label */}
-            <div className="absolute bottom-8 left-8 z-20">
-              <h2 className="text-white text-4xl font-semibold" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-                Go with AI Model
+                  <h2 className="text-2xl md:text-3xl font-bold text-white mb-2" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+                    AI Mode
               </h2>
+                  <p className="text-gray-300 text-sm leading-relaxed">
+                    Let artificial intelligence curate the perfect playlist for your mood and preferences
+                  </p>
             </div>
           </div>
 
-          {/* Right Panel - Three Sections */}
-          <div className="flex flex-col gap-6">
-            {/* Search and Enjoy Music */}
-            <div
-              onClick={() => navigate('/artists')}
-              className="flex-1 rounded-3xl p-6 relative overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform duration-300"
-                 style={{ 
-                   background: 'rgba(20, 20, 30, 0.6)',
-                   backdropFilter: 'blur(20px)',
-                   border: '1px solid rgba(255, 255, 255, 0.1)',
-                   minHeight: '150px'
-                 }}>
-              {/* Blue Glow */}
-              <div className="absolute inset-0 opacity-30" style={{
-                background: 'radial-gradient(circle at 70% 50%, #3B82F6 0%, #2563EB 50%, transparent 70%)',
-              }}></div>
-              
-              <div className="relative z-10 h-full flex items-center justify-between">
-                <h3 className="text-white text-2xl font-semibold" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-                  Just search and enjoy the music
-                </h3>
-                
-                {/* Illustration - Person with device */}
-                <div className="flex-shrink-0">
-                  <svg width="120" height="120" viewBox="0 0 120 120">
-                    {/* Glow */}
-                    <circle cx="60" cy="60" r="40" fill="url(#blueGradient)" opacity="0.4" />
+              {/* Middle Section - Illustration */}
+              <div className="flex-1 flex items-center justify-center my-4">
+                <div className="relative w-full max-w-xs">
+                  <svg width="100%" height="180" viewBox="0 0 400 300" className="relative z-10">
                     <defs>
-                      <radialGradient id="blueGradient">
-                        <stop offset="0%" stopColor="#3B82F6" />
-                        <stop offset="100%" stopColor="#2563EB" stopOpacity="0" />
+                      <radialGradient id="aiGradient1">
+                        <stop offset="0%" stopColor="#EC4899" stopOpacity="0.8" />
+                        <stop offset="100%" stopColor="#A855F7" stopOpacity="0" />
                       </radialGradient>
-                    </defs>
-                    
-                    {/* Person */}
-                    <circle cx="60" cy="40" r="12" fill="#3B82F6" />
-                    <ellipse cx="60" cy="35" rx="18" ry="10" fill="white" opacity="0.9" />
-                    <rect x="48" y="32" width="24" height="15" rx="7" fill="white" opacity="0.9" />
-                    <rect x="52" y="48" width="16" height="30" rx="8" fill="#3B82F6" />
-                    
-                    {/* Device/Phone */}
-                    <rect x="75" y="45" width="20" height="35" rx="3" fill="#1F2937" />
-                    <rect x="77" y="47" width="16" height="25" rx="2" fill="#111827" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            {/* Meditate */}
-            <div className="flex-1 rounded-3xl p-6 relative overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform duration-300"
-                 style={{ 
-                   background: 'rgba(20, 20, 30, 0.6)',
-                   backdropFilter: 'blur(20px)',
-                   border: '1px solid rgba(255, 255, 255, 0.1)',
-                   minHeight: '150px'
-                 }}>
-              {/* Green Glow */}
-              <div className="absolute inset-0 opacity-30" style={{
-                background: 'radial-gradient(circle at 70% 50%, #10B981 0%, #059669 50%, transparent 70%)',
-              }}></div>
-              
-              <div className="relative z-10 h-full flex items-center justify-between">
-                <h3 className="text-white text-2xl font-semibold" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-                  Meditate
-                </h3>
-                
-                {/* Illustration - Meditating person */}
-                <div className="flex-shrink-0">
-                  <svg width="120" height="120" viewBox="0 0 120 120">
-                    {/* Glow */}
-                    <circle cx="60" cy="60" r="40" fill="url(#greenGradient)" opacity="0.4" />
-                    <defs>
-                      <radialGradient id="greenGradient">
-                        <stop offset="0%" stopColor="#10B981" />
-                        <stop offset="100%" stopColor="#059669" stopOpacity="0" />
-                      </radialGradient>
-                    </defs>
-                    
-                    {/* Person in meditative pose */}
-                    <circle cx="60" cy="35" r="10" fill="#10B981" />
-                    <ellipse cx="60" cy="30" rx="15" ry="8" fill="white" opacity="0.9" />
-                    <rect x="55" y="27" width="10" height="12" rx="5" fill="white" opacity="0.9" />
-                    <ellipse cx="50" cy="50" rx="8" ry="25" fill="#10B981" />
-                    <ellipse cx="70" cy="50" rx="8" ry="25" fill="#10B981" />
-                    
-                    {/* Plants */}
-                    <circle cx="35" cy="70" r="8" fill="#10B981" opacity="0.6" />
-                    <circle cx="85" cy="75" r="8" fill="#10B981" opacity="0.6" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            {/* Sleep */}
-            <div className="flex-1 rounded-3xl p-6 relative overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform duration-300"
-                 style={{ 
-                   background: 'rgba(20, 20, 30, 0.6)',
-                   backdropFilter: 'blur(20px)',
-                   border: '1px solid rgba(255, 255, 255, 0.1)',
-                   minHeight: '150px'
-                 }}>
-              {/* Purple Glow */}
-              <div className="absolute inset-0 opacity-30" style={{
-                background: 'radial-gradient(circle at 70% 50%, #A855F7 0%, #7C3AED 50%, transparent 70%)',
-              }}></div>
-              
-              <div className="relative z-10 h-full flex items-center justify-between">
-                <h3 className="text-white text-2xl font-semibold" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-                  Sleep
-                </h3>
-                
-                {/* Illustration - Sleeping person */}
-                <div className="flex-shrink-0">
-                  <svg width="120" height="120" viewBox="0 0 120 120">
-                    {/* Glow */}
-                    <circle cx="60" cy="60" r="40" fill="url(#purpleGradient)" opacity="0.4" />
-                    <defs>
-                      <radialGradient id="purpleGradient">
-                        <stop offset="0%" stopColor="#A855F7" />
+                      <radialGradient id="aiGradient2">
+                        <stop offset="0%" stopColor="#A855F7" stopOpacity="0.6" />
                         <stop offset="100%" stopColor="#7C3AED" stopOpacity="0" />
                       </radialGradient>
                     </defs>
                     
-                    {/* Bed */}
-                    <rect x="30" y="75" width="60" height="25" rx="4" fill="#1E40AF" opacity="0.8" />
+                    {/* Glow circles */}
+                    <circle cx="200" cy="150" r="120" fill="url(#aiGradient1)" opacity="0.5">
+                      <animate attributeName="opacity" values="0.3;0.6;0.3" dur="3s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="200" cy="150" r="80" fill="url(#aiGradient2)" opacity="0.4">
+                      <animate attributeName="opacity" values="0.2;0.5;0.2" dur="2s" repeatCount="indefinite" />
+                    </circle>
                     
-                    {/* Person sleeping */}
-                    <circle cx="55" cy="65" r="8" fill="#A855F7" />
-                    <ellipse cx="55" cy="60" rx="12" ry="7" fill="white" opacity="0.9" />
-                    <rect x="50" y="57" width="10" height="10" rx="5" fill="white" opacity="0.9" />
-                    <ellipse cx="50" cy="75" rx="6" ry="20" fill="#A855F7" />
+                    {/* AI Brain/Neural Network */}
+                    <circle cx="200" cy="120" r="25" fill="#EC4899" opacity="0.9">
+                      <animate attributeName="r" values="25;28;25" dur="2s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="150" cy="150" r="15" fill="#A855F7" opacity="0.8">
+                      <animate attributeName="opacity" values="0.6;0.9;0.6" dur="2.5s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="250" cy="150" r="15" fill="#A855F7" opacity="0.8">
+                      <animate attributeName="opacity" values="0.6;0.9;0.6" dur="2.5s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="200" cy="180" r="15" fill="#7C3AED" opacity="0.8">
+                      <animate attributeName="opacity" values="0.6;0.9;0.6" dur="2.5s" repeatCount="indefinite" />
+                    </circle>
                     
-                    {/* Nightstand */}
-                    <rect x="20" y="70" width="15" height="30" rx="2" fill="#374151" />
-                    <circle cx="27.5" cy="75" r="3" fill="#FBBF24" opacity="0.6" />
+                    {/* Connection lines */}
+                    <line x1="200" y1="120" x2="150" y2="150" stroke="#EC4899" strokeWidth="2" opacity="0.5" />
+                    <line x1="200" y1="120" x2="250" y2="150" stroke="#EC4899" strokeWidth="2" opacity="0.5" />
+                    <line x1="200" y1="120" x2="200" y2="180" stroke="#EC4899" strokeWidth="2" opacity="0.5" />
+                    <line x1="150" y1="150" x2="200" y2="180" stroke="#A855F7" strokeWidth="2" opacity="0.4" />
+                    <line x1="250" y1="150" x2="200" y2="180" stroke="#A855F7" strokeWidth="2" opacity="0.4" />
+                    
+                    {/* Music notes */}
+                    <path d="M120 200 Q130 190 140 200 T160 200" stroke="#EC4899" strokeWidth="3" fill="none" opacity="0.7">
+                      <animate attributeName="opacity" values="0.5;0.9;0.5" dur="2s" repeatCount="indefinite" />
+                    </path>
+                    <path d="M240 200 Q250 190 260 200 T280 200" stroke="#A855F7" strokeWidth="3" fill="none" opacity="0.7">
+                      <animate attributeName="opacity" values="0.5;0.9;0.5" dur="2.5s" repeatCount="indefinite" />
+                    </path>
+                  </svg>
+                </div>
+              </div>
+
+              {/* Bottom Section - CTA */}
+              <div className="flex items-center justify-between mt-4">
+                <span className="text-white/60 text-xs font-medium">Click to explore</span>
+                <div className="flex items-center text-pink-400 group-hover:text-pink-300 transition-colors">
+                  <span className="mr-2 text-sm font-semibold">Get Started</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Bottom Button - Jump Back In */}
-        <div className="flex justify-center mt-8">
-          <button className="px-8 py-4 rounded-xl text-white font-semibold uppercase tracking-wide hover:bg-opacity-80 transition-all flex items-center gap-2"
-                  style={{ 
-                    background: 'rgba(20, 20, 30, 0.6)',
-                    backdropFilter: 'blur(20px)',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    fontFamily: 'system-ui, -apple-system, sans-serif'
-                  }}>
-            <span>JUMP BACK IN</span>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
+          {/* Search and Enjoy Music Card */}
+          <div 
+            onClick={() => navigate('/artists')}
+            className="group relative rounded-2xl p-6 overflow-hidden cursor-pointer transform transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl"
+            style={{ 
+              background: 'rgba(20, 20, 30, 0.7)',
+              backdropFilter: 'blur(30px)',
+              border: '2px solid rgba(59, 130, 246, 0.3)',
+              minHeight: '380px',
+              boxShadow: '0 20px 60px rgba(59, 130, 246, 0.2)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.6)';
+              e.currentTarget.style.boxShadow = '0 25px 80px rgba(59, 130, 246, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)';
+              e.currentTarget.style.boxShadow = '0 20px 60px rgba(59, 130, 246, 0.2)';
+            }}
+          >
+            {/* Animated Gradient Background */}
+            <div 
+              className="absolute inset-0 opacity-40"
+              style={{
+                background: 'radial-gradient(circle at 70% 40%, #3B82F6 0%, #2563EB 40%, #1D4ED8 70%, transparent 85%)',
+                animation: 'pulse-glow 4s ease-in-out infinite',
+              }}
+            ></div>
+            
+            {/* Shimmer effect */}
+            <div 
+              className="absolute inset-0 opacity-10"
+                 style={{ 
+                background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)',
+                backgroundSize: '200% 100%',
+                animation: 'shimmer 3s infinite',
+              }}
+            ></div>
+            
+            {/* Content */}
+            <div className="relative z-10 h-full flex flex-col justify-between">
+              {/* Top Section - Icon and Title */}
+              <div>
+                <div className="mb-4">
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl mb-3"
+                    style={{
+                      background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
+                      boxShadow: '0 10px 30px rgba(59, 130, 246, 0.4)',
+                    }}
+                  >
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="11" cy="11" r="8" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M21 21L16.65 16.65" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                  <h2 className="text-2xl md:text-3xl font-bold text-white mb-2" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+                    Search & Enjoy
+                  </h2>
+                  <p className="text-gray-300 text-sm leading-relaxed">
+                    Discover artists, explore tracks, and create your perfect music experience
+                  </p>
+                </div>
+              </div>
+
+              {/* Middle Section - Illustration */}
+              <div className="flex-1 flex items-center justify-center my-4">
+                <div className="relative w-full max-w-xs">
+                  <svg width="100%" height="180" viewBox="0 0 400 300" className="relative z-10">
+                    <defs>
+                      <radialGradient id="searchGradient1">
+                        <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.8" />
+                        <stop offset="100%" stopColor="#2563EB" stopOpacity="0" />
+                      </radialGradient>
+                      <radialGradient id="searchGradient2">
+                        <stop offset="0%" stopColor="#2563EB" stopOpacity="0.6" />
+                        <stop offset="100%" stopColor="#1D4ED8" stopOpacity="0" />
+                      </radialGradient>
+                    </defs>
+                    
+                    {/* Glow circles */}
+                    <circle cx="200" cy="150" r="120" fill="url(#searchGradient1)" opacity="0.5">
+                      <animate attributeName="opacity" values="0.3;0.6;0.3" dur="3s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="200" cy="150" r="80" fill="url(#searchGradient2)" opacity="0.4">
+                      <animate attributeName="opacity" values="0.2;0.5;0.2" dur="2s" repeatCount="indefinite" />
+                    </circle>
+                    
+                    {/* Search icon */}
+                    <circle cx="200" cy="150" r="40" stroke="#3B82F6" strokeWidth="4" fill="none" opacity="0.8">
+                      <animate attributeName="r" values="40;45;40" dur="2s" repeatCount="indefinite" />
+                    </circle>
+                    <line x1="230" y1="180" x2="250" y2="200" stroke="#3B82F6" strokeWidth="4" strokeLinecap="round" opacity="0.8" />
+                    
+                    {/* Music notes around search */}
+                    <path d="M120 100 Q130 90 140 100 T160 100" stroke="#3B82F6" strokeWidth="3" fill="none" opacity="0.7">
+                      <animate attributeName="opacity" values="0.5;0.9;0.5" dur="2s" repeatCount="indefinite" />
+                    </path>
+                    <path d="M280 100 Q290 90 300 100 T320 100" stroke="#2563EB" strokeWidth="3" fill="none" opacity="0.7">
+                      <animate attributeName="opacity" values="0.5;0.9;0.5" dur="2.5s" repeatCount="indefinite" />
+                    </path>
+                    <path d="M120 200 Q130 190 140 200 T160 200" stroke="#3B82F6" strokeWidth="3" fill="none" opacity="0.7">
+                      <animate attributeName="opacity" values="0.5;0.9;0.5" dur="2.2s" repeatCount="indefinite" />
+                    </path>
+                    <path d="M280 200 Q290 190 300 200 T320 200" stroke="#2563EB" strokeWidth="3" fill="none" opacity="0.7">
+                      <animate attributeName="opacity" values="0.5;0.9;0.5" dur="2.7s" repeatCount="indefinite" />
+                    </path>
+                    
+                    {/* Floating particles */}
+                    <circle cx="100" cy="120" r="4" fill="#3B82F6" opacity="0.6">
+                      <animate attributeName="cy" values="120;110;120" dur="3s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="300" cy="180" r="4" fill="#2563EB" opacity="0.6">
+                      <animate attributeName="cy" values="180;170;180" dur="3.5s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="150" cy="220" r="3" fill="#1D4ED8" opacity="0.6">
+                      <animate attributeName="cy" values="220;210;220" dur="2.8s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="250" cy="90" r="3" fill="#3B82F6" opacity="0.6">
+                      <animate attributeName="cy" values="90;80;90" dur="3.2s" repeatCount="indefinite" />
+                    </circle>
+                  </svg>
+                </div>
+              </div>
+
+              {/* Bottom Section - CTA */}
+              <div className="flex items-center justify-between mt-4">
+                <span className="text-white/60 text-xs font-medium">Click to explore</span>
+                <div className="flex items-center text-blue-400 group-hover:text-blue-300 transition-colors">
+                  <span className="mr-2 text-sm font-semibold">Get Started</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ import {
   getTopArtistsShowcase as fetchTopArtistsShowcase,
   searchSpotifyCatalog as fetchSpotifyCatalog,
   getArtistByIdWithTracks,
+  getRecommendationsByArtists,
 } from '../services/spotify.service';
 import { getTracksByMood as getYouTubeTracks, getRecommendationsByMood as getYouTubeRecommendations } from '../services/youtube.service';
 import { getTracksByMood as getSoundCloudTracks, getRecommendationsByMood as getSoundCloudRecommendations } from '../services/soundcloud.service';
@@ -1105,6 +1106,87 @@ export const getArtistByIdController = async (req: AuthRequest, res: Response): 
       success: false,
       message: error.message || 'Failed to fetch artist',
       error: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    });
+  }
+};
+
+/**
+ * @route   GET /api/music/recommendations/artists
+ * @desc    Get track recommendations based on seed artist IDs (for mix stations)
+ * @access  Private
+ */
+export const getRecommendationsByArtistsController = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user?.id) {
+      res.status(401).json({
+        success: false,
+        message: 'Unauthorized. Please login and try again.',
+      });
+      return;
+    }
+
+    const { artistIds, limit, target_energy, target_danceability, target_valence } = req.query;
+
+    if (!artistIds) {
+      res.status(400).json({
+        success: false,
+        message: 'artistIds parameter is required (comma-separated list of Spotify artist IDs).',
+      });
+      return;
+    }
+
+    const artistIdArray = (artistIds as string).split(',').map(id => id.trim()).filter(Boolean);
+    
+    if (artistIdArray.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: 'At least one artist ID is required.',
+      });
+      return;
+    }
+
+    const limitNum = parsePositiveInteger(limit) || 20;
+    const options: {
+      target_energy?: number;
+      target_danceability?: number;
+      target_valence?: number;
+    } = {};
+
+    if (target_energy) {
+      const energy = parseFloat(target_energy as string);
+      if (!isNaN(energy) && energy >= 0 && energy <= 1) {
+        options.target_energy = energy;
+      }
+    }
+    if (target_danceability) {
+      const danceability = parseFloat(target_danceability as string);
+      if (!isNaN(danceability) && danceability >= 0 && danceability <= 1) {
+        options.target_danceability = danceability;
+      }
+    }
+    if (target_valence) {
+      const valence = parseFloat(target_valence as string);
+      if (!isNaN(valence) && valence >= 0 && valence <= 1) {
+        options.target_valence = valence;
+      }
+    }
+
+    const tracks = await getRecommendationsByArtists(artistIdArray, limitNum, options);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        tracks,
+        count: tracks.length,
+        seedArtists: artistIdArray,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error getting recommendations by artists:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to get recommendations',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };

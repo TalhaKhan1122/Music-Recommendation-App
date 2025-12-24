@@ -9,6 +9,8 @@ export { default as ProtectedRoute } from './ProtectedRoute';
 export { default as SpotifyEmbed } from './SpotifyEmbed';
 export { default as GlobalSpotifyPlayer } from './GlobalSpotifyPlayer';
 export { default as GlobalHeader } from './GlobalHeader';
+export { default as VoiceSearch } from './VoiceSearch';
+export { default as VoiceSearchModal } from './VoiceSearchModal';
 export type { Feature } from './FeatureSection';
 
 // Export icons

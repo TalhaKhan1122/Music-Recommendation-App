@@ -6,5 +6,6 @@ export { default as AuthCallback } from './AuthCallback';
 export { default as NotFound } from './NotFound';
 export { default as Artists } from './Artists';
 export { default as ArtistDetail } from './ArtistDetail';
+export { default as StationDetail } from './StationDetail';
 export { default as Playlists } from './Playlists';
 

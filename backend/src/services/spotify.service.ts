@@ -1086,4 +1086,96 @@ export const getArtistByIdWithTracks = async (
   }
 };
 
+/**
+ * Get recommendations based on seed artist IDs (for mix stations)
+ */
+export const getRecommendationsByArtists = async (
+  artistIds: string[],
+  limit: number = 20,
+  options?: {
+    target_energy?: number;
+    target_danceability?: number;
+    target_valence?: number;
+  }
+): Promise<any[]> => {
+  try {
+    if (!artistIds || artistIds.length === 0) {
+      throw new Error('At least one artist ID is required');
+    }
+
+    // Spotify allows max 5 seed values total (artists + tracks + genres)
+    const seedArtists = artistIds.slice(0, 5).join(',');
+    
+    const token = await getAccessToken();
+    
+    const params: Record<string, string | number> = {
+      seed_artists: seedArtists,
+      limit: Math.min(limit, 100),
+      market: 'US',
+      min_popularity: 30,
+    };
+
+    // Add optional audio feature targets
+    if (options?.target_energy !== undefined) {
+      params.target_energy = options.target_energy;
+    }
+    if (options?.target_danceability !== undefined) {
+      params.target_danceability = options.target_danceability;
+    }
+    if (options?.target_valence !== undefined) {
+      params.target_valence = options.target_valence;
+    }
+
+    console.log(`🎵 Getting recommendations for artists: ${seedArtists}`);
+    
+    const response = await axios.get('https://api.spotify.com/v1/recommendations', {
+      params,
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const recommendedTracks = response.data?.tracks || [];
+    
+    if (recommendedTracks.length === 0) {
+      console.warn('⚠️ No recommendations returned from Spotify API');
+      return [];
+    }
+
+    console.log(`✅ Got ${recommendedTracks.length} recommendations for artist mix`);
+    
+    // Format tracks with error handling for each track
+    const formattedTracks = [];
+    for (const track of recommendedTracks) {
+      try {
+        formattedTracks.push(formatSpotifyTrack(track));
+      } catch (trackError: any) {
+        console.warn(`⚠️ Skipping invalid track:`, trackError.message, track);
+        // Continue with other tracks
+      }
+    }
+    
+    if (formattedTracks.length === 0) {
+      console.warn('⚠️ No valid tracks after formatting');
+      return [];
+    }
+    
+    return formattedTracks;
+  } catch (error: any) {
+    console.error('❌ Error getting recommendations by artists:', error.response?.data || error.message);
+    console.error('Full error:', error);
+    
+    // Provide more detailed error message
+    if (error.response?.status === 400) {
+      throw new Error(`Invalid request to Spotify API: ${error.response?.data?.error?.message || 'Bad request'}`);
+    } else if (error.response?.status === 401) {
+      throw new Error('Spotify authentication failed. Please check API credentials.');
+    } else if (error.response?.status === 429) {
+      throw new Error('Spotify API rate limit exceeded. Please try again later.');
+    }
+    
+    throw new Error(`Failed to get recommendations: ${error.message || 'Unknown error'}`);
+  }
+};
+
 

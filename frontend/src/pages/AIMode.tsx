@@ -930,26 +930,74 @@ const AIMode: React.FC = () => {
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ 
-      background: 'linear-gradient(to bottom, #0a0a0a 0%, #1a0a1a 100%)'
+      background: 'linear-gradient(135deg, #0a0a0a 0%, #1a0a1a 25%, #0f0f1a 50%, #1a0a1a 75%, #0a0a0a 100%)'
     }}>
-      <div className="container mx-auto px-6 py-12 max-w-4xl">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-4" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      {/* Animated background particles */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {[...Array(15)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute rounded-full opacity-20"
+            style={{
+              width: `${Math.random() * 4 + 2}px`,
+              height: `${Math.random() * 4 + 2}px`,
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              background: `hsl(${Math.random() * 60 + 270}, 70%, 70%)`,
+              animation: `float ${Math.random() * 10 + 10}s infinite ease-in-out`,
+              animationDelay: `${Math.random() * 5}s`,
+            }}
+          />
+        ))}
+      </div>
+
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) translateX(0px); }
+          33% { transform: translateY(-20px) translateX(10px); }
+          66% { transform: translateY(20px) translateX(-10px); }
+        }
+        @keyframes pulse-glow {
+          0%, 100% { opacity: 0.4; transform: scale(1); }
+          50% { opacity: 0.6; transform: scale(1.05); }
+        }
+        @keyframes mood-pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+        }
+      `}</style>
+
+      <div className="container mx-auto px-6 py-12 max-w-5xl relative z-10">
+        <div className="text-center mb-10">
+          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4" style={{ 
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            background: 'linear-gradient(135deg, #ffffff 0%, #ec4899 50%, #a78bfa 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}>
             AI Mood Detection
           </h1>
-          <p className="text-gray-400 text-lg">
+          <p className="text-gray-300 text-lg">
             Let our AI analyze your facial expression to recommend the perfect music
           </p>
         </div>
 
         {error ? (
-          <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-6 text-center">
-            <p className="text-red-400">{error}</p>
+          <div className="bg-red-500/20 border-2 border-red-500/50 rounded-2xl p-6 text-center backdrop-blur-sm">
+            <p className="text-red-400 font-semibold">{error}</p>
           </div>
         ) : (
           <div className="space-y-6">
             {/* Video Preview */}
-            <div className="relative rounded-2xl overflow-hidden bg-gray-900/50 backdrop-blur-sm border border-gray-800">
+            <div className="relative rounded-3xl overflow-hidden"
+              style={{
+                background: 'rgba(20, 20, 30, 0.7)',
+                backdropFilter: 'blur(30px)',
+                border: '2px solid rgba(236, 72, 153, 0.3)',
+                boxShadow: '0 20px 60px rgba(236, 72, 153, 0.2)',
+              }}
+            >
               <div className="relative">
                 <video
                   ref={videoRef}
@@ -967,12 +1015,21 @@ const AIMode: React.FC = () => {
                 
                 {!isDetecting && (
                   <div className="py-32 text-center">
-                    <div className="text-gray-400 mb-4">
-                      <svg className="w-24 h-24 mx-auto opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="text-gray-400 mb-4 relative">
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-32 h-32 rounded-full"
+                          style={{
+                            background: 'radial-gradient(circle, rgba(236, 72, 153, 0.2) 0%, transparent 70%)',
+                            animation: 'pulse-glow 3s ease-in-out infinite',
+                          }}
+                        ></div>
+                      </div>
+                      <svg className="w-24 h-24 mx-auto opacity-60 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                       </svg>
                     </div>
-                    <p className="text-gray-400">Camera not active</p>
+                    <p className="text-gray-300 font-medium">Camera not active</p>
+                    <p className="text-gray-500 text-sm mt-2">Click "Start Camera" to begin</p>
                   </div>
                 )}
               </div>
@@ -981,68 +1038,127 @@ const AIMode: React.FC = () => {
             {/* Mood Display - Always show if detecting or if mood is set */}
             {(mood || isDetecting) && (
               <div 
-                className="rounded-2xl p-8 text-center"
+                className="rounded-3xl p-10 text-center relative overflow-hidden"
                 style={{
-                  background: mood ? `linear-gradient(135deg, ${getMoodColor(mood)}20 0%, ${getMoodColor(mood)}10 100%)` : 'linear-gradient(135deg, rgba(107, 114, 128, 0.2) 0%, rgba(107, 114, 128, 0.1) 100%)',
-                  border: mood ? `1px solid ${getMoodColor(mood)}40` : '1px solid rgba(107, 114, 128, 0.4)'
+                  background: mood 
+                    ? `rgba(20, 20, 30, 0.8)` 
+                    : 'rgba(20, 20, 30, 0.7)',
+                  backdropFilter: 'blur(30px)',
+                  border: mood 
+                    ? `2px solid ${getMoodColor(mood)}50` 
+                    : '2px solid rgba(107, 114, 128, 0.4)',
+                  boxShadow: mood 
+                    ? `0 20px 60px ${getMoodColor(mood)}30` 
+                    : '0 20px 60px rgba(107, 114, 128, 0.2)',
                 }}
               >
-                {mood ? (
-                  <>
-                    <div 
-                      key={`emoji-${moodChangeCount}`} 
-                      className="text-6xl mb-4 transition-all duration-500"
-                    >
-                      {getMoodEmoji(mood)}
-                    </div>
-                    <h2 
-                      key={`mood-${moodChangeCount}`}
-                      className="text-3xl font-bold text-white mb-2 capitalize transition-all duration-300" 
-                      style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
-                    >
-                      {mood}
-                    </h2>
-                    <p className="text-gray-300 mb-4">
-                      Confidence: {Math.round(confidence * 100)}%
-                    </p>
-                    {moodChangeCount > 0 && (
-                      <p className="text-xs text-gray-400 italic">
-                        Mood updated {moodChangeCount} time{moodChangeCount !== 1 ? 's' : ''}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div className="text-6xl mb-4">🤖</div>
-                    <h2 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-                      Detecting Mood...
-                    </h2>
-                    <p className="text-gray-300 mb-4">
-                      Analyzing your facial expression...
-                    </p>
-                  </>
+                {/* Animated gradient background */}
+                {mood && (
+                  <div 
+                    className="absolute inset-0 opacity-30"
+                    style={{
+                      background: `radial-gradient(circle at 50% 50%, ${getMoodColor(mood)} 0%, transparent 70%)`,
+                      animation: 'pulse-glow 3s ease-in-out infinite',
+                    }}
+                  ></div>
                 )}
+                
+                <div className="relative z-10">
+                  {mood ? (
+                    <>
+                      <div 
+                        key={`emoji-${moodChangeCount}`} 
+                        className="text-8xl mb-6 transition-all duration-500"
+                        style={{
+                          animation: 'mood-pulse 2s ease-in-out infinite',
+                          filter: `drop-shadow(0 0 20px ${getMoodColor(mood)}80)`,
+                        }}
+                      >
+                        {getMoodEmoji(mood)}
+                      </div>
+                      <h2 
+                        key={`mood-${moodChangeCount}`}
+                        className="text-4xl md:text-5xl font-bold text-white mb-3 capitalize transition-all duration-300" 
+                        style={{ 
+                          fontFamily: 'system-ui, -apple-system, sans-serif',
+                          textShadow: `0 0 20px ${getMoodColor(mood)}50`,
+                        }}
+                      >
+                        {mood}
+                      </h2>
+                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-4"
+                        style={{
+                          background: `${getMoodColor(mood)}20`,
+                          border: `1px solid ${getMoodColor(mood)}50`,
+                        }}
+                      >
+                        <div className="w-2 h-2 rounded-full"
+                          style={{
+                            background: getMoodColor(mood),
+                            boxShadow: `0 0 10px ${getMoodColor(mood)}`,
+                            animation: 'pulse-glow 2s ease-in-out infinite',
+                          }}
+                        ></div>
+                        <p className="text-white font-semibold">
+                          Confidence: {Math.round(confidence * 100)}%
+                        </p>
+                      </div>
+                      {moodChangeCount > 0 && (
+                        <p className="text-xs text-gray-400 italic">
+                          Mood updated {moodChangeCount} time{moodChangeCount !== 1 ? 's' : ''}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-8xl mb-6" style={{ animation: 'mood-pulse 2s ease-in-out infinite' }}>
+                        🤖
+                      </div>
+                      <h2 className="text-4xl font-bold text-white mb-3" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+                        Detecting Mood...
+                      </h2>
+                      <p className="text-gray-300 mb-4">
+                        Analyzing your facial expression...
+                      </p>
+                      <div className="flex justify-center gap-1 mt-4">
+                        {[0, 1, 2].map((i) => (
+                          <div
+                            key={i}
+                            className="w-2 h-2 rounded-full bg-purple-400"
+                            style={{
+                              animation: `pulse-glow ${1 + i * 0.2}s ease-in-out infinite`,
+                              animationDelay: `${i * 0.2}s`,
+                            }}
+                          ></div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
                 
                 {/* Music Fetching Status */}
                 {isFetchingMusic && (
-                  <div className="mb-4 flex items-center justify-center gap-2 text-blue-400">
+                  <div className="mb-4 flex items-center justify-center gap-3 text-blue-400 relative z-10">
                     <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    <span className="text-sm">Fetching music from Spotify...</span>
+                    <span className="text-sm font-medium">Fetching music from Spotify...</span>
                   </div>
                 )}
                 
                 {tracksFetched && !isFetchingMusic && fetchedTracksCount > 0 && (
-                  <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
-                    <p className="text-green-400 text-sm font-semibold">
-                      ✅ {fetchedTracksCount} tracks ready from Spotify!
+                  <div className="mb-4 p-4 bg-green-500/20 border-2 border-green-500/50 rounded-xl relative z-10 backdrop-blur-sm">
+                    <p className="text-green-400 text-sm font-semibold flex items-center justify-center gap-2">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      {fetchedTracksCount} tracks ready from Spotify!
                     </p>
                   </div>
                 )}
                 
-                <p className="text-sm text-gray-400 italic mt-4">
+                <p className="text-sm text-gray-400 italic mt-6 relative z-10">
                   Mood is being detected continuously. Click "Stop Detection" to go to the player with your current mood.
                 </p>
               </div>
@@ -1050,20 +1166,23 @@ const AIMode: React.FC = () => {
 
             {/* Model Status Indicator */}
             {modelLoadError && (
-              <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-4 text-center">
-                <p className="text-yellow-400 text-sm">
+              <div className="bg-yellow-500/20 border-2 border-yellow-500/50 rounded-2xl p-5 text-center backdrop-blur-sm">
+                <p className="text-yellow-400 text-sm font-semibold">
                   ⚠️ AI Model Error: {modelLoadError}
                 </p>
-                <p className="text-yellow-300/70 text-xs mt-1">
+                <p className="text-yellow-300/70 text-xs mt-2">
                   Using fallback detection mode. Detection will still work but may be less accurate.
                 </p>
               </div>
             )}
             
             {!modelLoadError && faceDetectionModelRef.current && (
-              <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-3 text-center">
-                <p className="text-green-400 text-sm font-semibold">
-                  ✅ AI Model Loaded Successfully
+              <div className="bg-green-500/20 border-2 border-green-500/50 rounded-2xl p-4 text-center backdrop-blur-sm">
+                <p className="text-green-400 text-sm font-semibold flex items-center justify-center gap-2">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  AI Model Loaded Successfully
                 </p>
               </div>
             )}
@@ -1075,8 +1194,18 @@ const AIMode: React.FC = () => {
                   <button
                     onClick={startWebcam}
                     disabled={isModelLoading}
-                    className="px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
+                    className="px-10 py-5 text-white rounded-2xl font-semibold transition-all duration-300 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95"
+                    style={{ 
+                      fontFamily: 'system-ui, -apple-system, sans-serif',
+                      background: 'linear-gradient(135deg, #EC4899 0%, #A855F7 100%)',
+                      boxShadow: '0 10px 30px rgba(236, 72, 153, 0.4)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.boxShadow = '0 15px 40px rgba(236, 72, 153, 0.6)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.boxShadow = '0 10px 30px rgba(236, 72, 153, 0.4)';
+                    }}
                   >
                     {isModelLoading ? (
                       <>
@@ -1088,8 +1217,8 @@ const AIMode: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                         </svg>
                         Start Camera & Detect Mood
                       </>
@@ -1101,31 +1230,63 @@ const AIMode: React.FC = () => {
                       e.preventDefault();
                       stopDetection(true);
                     }}
-                    className="px-8 py-4 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
-                    style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
+                    className="px-10 py-5 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-semibold transition-all duration-300 flex items-center gap-3 transform hover:scale-105 active:scale-95"
+                    style={{ 
+                      fontFamily: 'system-ui, -apple-system, sans-serif',
+                      boxShadow: '0 10px 30px rgba(239, 68, 68, 0.4)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.boxShadow = '0 15px 40px rgba(239, 68, 68, 0.6)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.boxShadow = '0 10px 30px rgba(239, 68, 68, 0.4)';
+                    }}
                   >
-                  <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-                  </svg>
-                  Stop Detection (Optional)
-                </button>
+                    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                    </svg>
+                    Stop Detection (Optional)
+                  </button>
                 )}
               </div>
               
             </div>
 
             {/* Instructions */}
-            <div className="bg-gray-900/50 backdrop-blur-sm rounded-lg p-6 border border-gray-800">
-              <h3 className="text-white font-semibold mb-3" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+            <div className="rounded-2xl p-6 backdrop-blur-sm"
+              style={{
+                background: 'rgba(20, 20, 30, 0.7)',
+                border: '2px solid rgba(255, 255, 255, 0.1)',
+              }}
+            >
+              <h3 className="text-white font-semibold mb-4 text-lg flex items-center gap-2" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
                 Instructions:
               </h3>
-              <ul className="text-gray-400 space-y-2 text-sm">
-                <li>• Make sure you have good lighting</li>
-                <li>• Position your face clearly in front of the camera</li>
-                <li>• Allow camera permissions when prompted</li>
-                <li>• The AI will analyze your facial expression to detect your mood</li>
-                <li>• Once detected, you can start music based on your mood</li>
+              <ul className="text-gray-300 space-y-3 text-sm">
+                <li className="flex items-start gap-3">
+                  <span className="text-purple-400 mt-1">•</span>
+                  <span>Make sure you have good lighting</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-purple-400 mt-1">•</span>
+                  <span>Position your face clearly in front of the camera</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-purple-400 mt-1">•</span>
+                  <span>Allow camera permissions when prompted</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-purple-400 mt-1">•</span>
+                  <span>The AI will analyze your facial expression to detect your mood</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-purple-400 mt-1">•</span>
+                  <span>Once detected, you can start music based on your mood</span>
+                </li>
               </ul>
             </div>
           </div>

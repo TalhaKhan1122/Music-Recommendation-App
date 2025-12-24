@@ -1,6 +1,6 @@
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
-import { HomePage, Dashboard, AIMode, Player, Artists, ArtistDetail, AuthCallback, NotFound } from './pages';
+import { HomePage, Dashboard, AIMode, Player, Artists, ArtistDetail, StationDetail, AuthCallback, NotFound } from './pages';
 import { ProtectedRoute, GlobalSpotifyPlayer, GlobalHeader } from './components';
 import { SpotifyPlayerProvider, FollowedArtistsProvider } from './context';
 
@@ -51,6 +51,14 @@ function AppContent() {
           element={
             <ProtectedRoute>
               <ArtistDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/station/:stationId"
+          element={
+            <ProtectedRoute>
+              <StationDetail />
             </ProtectedRoute>
           }
         />
