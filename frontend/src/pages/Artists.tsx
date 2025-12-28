@@ -162,11 +162,13 @@ const Artists: React.FC = () => {
     punjabi: [],
     english: [],
     global: [],
+    pakistani: [],
   });
   const [isLoadingPopularTracks, setIsLoadingPopularTracks] = useState<Record<string, boolean>>({
     punjabi: false,
     english: false,
     global: false,
+    pakistani: false,
   });
   const [recommendedStations, setRecommendedStations] = useState<Array<{
     id: string;
@@ -174,6 +176,7 @@ const Artists: React.FC = () => {
     artists: Array<{ id: string; name: string; image?: string }>;
     color: string;
   }>>([]);
+  const [isLoadingStations, setIsLoadingStations] = useState(false);
   // Featured artists/tracks moved to StationDetail page
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -226,19 +229,45 @@ const Artists: React.FC = () => {
     fetchArtists();
   }, [fetchArtists]);
 
-  const fetchPopularTracks = useCallback(async (category: 'punjabi' | 'english' | 'global') => {
+  const fetchPopularTracks = useCallback(async (category: 'punjabi' | 'english' | 'global' | 'pakistani') => {
     setIsLoadingPopularTracks((prev) => ({ ...prev, [category]: true }));
     try {
-      // Use different moods for different categories to get relevant popular tracks
-      const moodMap: Record<string, string> = {
-        punjabi: 'excited', // High energy for Punjabi
-        english: 'happy', // Popular English tracks
-        global: 'excited', // Trending global hits
-      };
-      
-      const mood = moodMap[category] || 'excited';
-      const response = await getTracksByMood(mood, 12, 'recommendations', 'spotify');
-      setPopularTracks((prev) => ({ ...prev, [category]: response.data.tracks }));
+      // For Pakistani category, fetch tracks from Pakistani artists specifically
+      if (category === 'pakistani') {
+        const payload = await getTopArtistsShowcase({
+          limitPerCategory: 12,
+          topTrackLimit: 3,
+        });
+        
+        // Find Pakistani section and collect tracks
+        const pakistaniSection = payload.sections.find(s => s.category === 'pakistani');
+        if (pakistaniSection) {
+          const pakistaniTracks: Track[] = [];
+          pakistaniSection.artists.forEach(artist => {
+            if (artist.topTracks && Array.isArray(artist.topTracks)) {
+              pakistaniTracks.push(...artist.topTracks);
+            }
+          });
+          // Remove duplicates by track ID
+          const uniqueTracks = pakistaniTracks.filter((track, index, self) =>
+            index === self.findIndex(t => t.id === track.id)
+          );
+          setPopularTracks((prev) => ({ ...prev, [category]: uniqueTracks.slice(0, 12) }));
+        } else {
+          setPopularTracks((prev) => ({ ...prev, [category]: [] }));
+        }
+      } else {
+        // Use different moods for other categories
+        const moodMap: Record<string, string> = {
+          punjabi: 'excited', // High energy for Punjabi
+          english: 'happy', // Popular English tracks
+          global: 'excited', // Trending global hits
+        };
+        
+        const mood = moodMap[category] || 'excited';
+        const response = await getTracksByMood(mood, 12, 'recommendations', 'spotify');
+        setPopularTracks((prev) => ({ ...prev, [category]: response.data.tracks }));
+      }
     } catch (err: any) {
       console.error(`Error fetching popular tracks for ${category}:`, err);
       // Don't show error toast, just log it
@@ -258,14 +287,10 @@ const Artists: React.FC = () => {
     );
   }, []);
 
-  // Generate recommended stations/mixes from followed artists
-  const generateRecommendedStations = useCallback(() => {
+  // Generate recommended stations/mixes from followed artists and global famous artists
+  const generateRecommendedStations = useCallback(async () => {
+    setIsLoadingStations(true);
     const followedList = Object.values(followedArtists);
-    
-    if (followedList.length === 0) {
-      setRecommendedStations([]);
-      return;
-    }
 
     // Group artists into mixes (collaborations)
     const stations: Array<{
@@ -287,93 +312,136 @@ const Artists: React.FC = () => {
       '#FF5252', // Red
     ];
 
-    // Only create collaboration mixes (2+ artists) - no single artist stations
+    // Helper function to create a station from artists
+    const createStation = (artists: Array<{ id: string; name: string; image?: string }>, baseId: string): void => {
+      if (artists.length < 2) return;
+      
+      const mixName = artists.map(a => a.name || 'Artist').join(' & ');
+      const stationId = `mix-${baseId}`;
+      
+      stations.push({
+        id: stationId,
+        name: mixName,
+        artists: artists,
+        color: colors[(stations.length) % colors.length],
+      });
+    };
+
+    // 1. Create stations from followed artists (if any)
     if (followedList.length >= 2) {
-      // Create pairs of 2 artists
-      for (let i = 0; i < followedList.length - 1; i++) {
-        for (let j = i + 1; j < Math.min(followedList.length, i + 4); j++) {
-          const artist1 = followedList[i];
-          const artist2 = followedList[j];
+      // Create pairs of 2 artists from followed list
+      const maxFollowedPairs = Math.min(3, Math.floor(followedList.length / 2));
+      for (let i = 0; i < maxFollowedPairs; i++) {
+        const idx1 = i * 2;
+        const idx2 = idx1 + 1;
+        if (idx2 < followedList.length) {
+          const artist1 = followedList[idx1];
+          const artist2 = followedList[idx2];
           
           if (artist1 && artist2) {
             const spotifyId1 = artist1.artistId || artist1.id || '';
             const spotifyId2 = artist2.artistId || artist2.id || '';
             
-            if (!spotifyId1 || !spotifyId2) continue; // Skip if no Spotify IDs
-            
-            // Create mix name
-            const mixName = `${artist1.name || 'Artist'} & ${artist2.name || 'Artist'}`;
-            
-            stations.push({
-              id: `mix-${spotifyId1}-${spotifyId2}`,
-              name: mixName,
-              artists: [
-                {
-                  id: spotifyId1,
-                  name: artist1.name || 'Unknown',
-                  image: artist1.image,
-                },
-                {
-                  id: spotifyId2,
-                  name: artist2.name || 'Unknown',
-                  image: artist2.image,
-                },
-              ],
-              color: colors[(stations.length) % colors.length],
-            });
-          }
-        }
-      }
-      
-      // Also create mixes with 3+ artists if available
-      if (followedList.length >= 3) {
-        for (let i = 0; i < Math.min(followedList.length - 2, 3); i++) {
-          const artist1 = followedList[i];
-          const artist2 = followedList[i + 1];
-          const artist3 = followedList[i + 2];
-          
-          if (artist1 && artist2 && artist3) {
-            const spotifyId1 = artist1.artistId || artist1.id || '';
-            const spotifyId2 = artist2.artistId || artist2.id || '';
-            const spotifyId3 = artist3.artistId || artist3.id || '';
-            
-            if (!spotifyId1 || !spotifyId2 || !spotifyId3) continue;
-            
-            const mixName = `${artist1.name || 'Artist'}, ${artist2.name || 'Artist'} & ${artist3.name || 'Artist'}`;
-            
-            stations.push({
-              id: `mix-${spotifyId1}-${spotifyId2}-${spotifyId3}`,
-              name: mixName,
-              artists: [
-                {
-                  id: spotifyId1,
-                  name: artist1.name || 'Unknown',
-                  image: artist1.image,
-                },
-                {
-                  id: spotifyId2,
-                  name: artist2.name || 'Unknown',
-                  image: artist2.image,
-                },
-                {
-                  id: spotifyId3,
-                  name: artist3.name || 'Unknown',
-                  image: artist3.image,
-                },
-              ],
-              color: colors[(stations.length) % colors.length],
-            });
+            if (spotifyId1 && spotifyId2) {
+              createStation(
+                [
+                  {
+                    id: spotifyId1,
+                    name: artist1.name || 'Unknown',
+                    image: artist1.image,
+                  },
+                  {
+                    id: spotifyId2,
+                    name: artist2.name || 'Unknown',
+                    image: artist2.image,
+                  },
+                ],
+                `${spotifyId1}-${spotifyId2}`
+              );
+            }
           }
         }
       }
     }
 
-    setRecommendedStations(stations);
+    // 2. Fetch and create stations from global famous artists (all categories)
+    try {
+      const payload = await getTopArtistsShowcase({
+        limitPerCategory: 8, // Get more artists to create good mixes
+        topTrackLimit: DEFAULT_TOP_TRACK_LIMIT,
+      });
+
+      // Collect artists from all categories
+      const allTopArtists: Array<{ id: string; name: string; image?: string }> = [];
+      payload.sections.forEach((section) => {
+        section.artists.forEach((artist) => {
+          if (artist.id && artist.name) {
+            allTopArtists.push({
+              id: artist.id,
+              name: artist.name,
+              image: artist.image,
+            });
+          }
+        });
+      });
+
+      // Shuffle to mix categories
+      const shuffled = [...allTopArtists].sort(() => Math.random() - 0.5);
+
+      // Create stations from global artists (mix different categories)
+      const maxGlobalStations = 5; // Create 5 stations from global artists
+      for (let i = 0; i < Math.min(maxGlobalStations, Math.floor(shuffled.length / 2)); i++) {
+        const idx1 = i * 2;
+        const idx2 = idx1 + 1;
+        if (idx2 < shuffled.length) {
+          const artist1 = shuffled[idx1];
+          const artist2 = shuffled[idx2];
+          
+          if (artist1 && artist2 && artist1.id && artist2.id) {
+            createStation(
+              [artist1, artist2],
+              `global-${artist1.id}-${artist2.id}`
+            );
+          }
+        }
+      }
+
+      // Also create some 3-artist mixes from global artists
+      if (shuffled.length >= 3) {
+        const maxTripleMixes = 2;
+        for (let i = 0; i < Math.min(maxTripleMixes, Math.floor(shuffled.length / 3)); i++) {
+          const idx1 = i * 3;
+          const idx2 = idx1 + 1;
+          const idx3 = idx1 + 2;
+          if (idx3 < shuffled.length) {
+            const artist1 = shuffled[idx1];
+            const artist2 = shuffled[idx2];
+            const artist3 = shuffled[idx3];
+            
+            if (artist1 && artist2 && artist3 && artist1.id && artist2.id && artist3.id) {
+              createStation(
+                [artist1, artist2, artist3],
+                `global-${artist1.id}-${artist2.id}-${artist3.id}`
+              );
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('Error fetching top artists for stations:', err);
+      // Continue with just followed artists if this fails
+    }
+
+    // Shuffle all stations to mix followed and global
+    const finalStations = [...stations].sort(() => Math.random() - 0.5);
+    setRecommendedStations(finalStations);
     
     // Check scroll buttons after stations are set
     setTimeout(() => {
       checkScrollButtons();
     }, 100);
+    
+    setIsLoadingStations(false);
   }, [followedArtists, checkScrollButtons]);
 
   // Scroll functions
@@ -436,7 +504,8 @@ const Artists: React.FC = () => {
       fetchPopularTracks('punjabi');
       fetchPopularTracks('english');
       fetchPopularTracks('global');
-      // Generate recommended stations from followed artists
+      fetchPopularTracks('pakistani');
+      // Generate recommended stations from followed artists and global artists
       generateRecommendedStations();
     }
   }, [fetchPopularTracks, hasSearchResults, generateRecommendedStations]);
@@ -845,8 +914,8 @@ const Artists: React.FC = () => {
         hasActivePlayer ? 'pb-44 md:pb-52' : ''
       }`}
     >
-      <div className="mx-auto max-w-7xl px-6 py-12">
-        <div className="flex flex-col gap-10 lg:grid lg:grid-cols-[80px_minmax(0,1fr)] lg:items-start">
+      <div className="w-full py-12">
+        <div className="flex flex-col gap-10 lg:grid lg:grid-cols-[80px_minmax(0,1fr)] lg:items-start px-6">
           <aside className="order-last mt-8 lg:order-first lg:mt-0 lg:h-[calc(100vh-8rem)] lg:sticky lg:top-24">
             <div className="flex h-full flex-col items-center rounded-2xl border border-white/10 bg-[#09060f]/95 px-2 py-4 shadow-[0_25px_70px_rgba(20,0,40,0.45)] backdrop-blur-xl">
               {hasFollowedArtists ? (
@@ -976,7 +1045,7 @@ const Artists: React.FC = () => {
             {renderSearchResults()}
 
             {/* Recommended Stations Section - Based on Followed Artists */}
-            {!hasSearchResults && recommendedStations.length > 0 && (
+            {!hasSearchResults && (isLoadingStations || recommendedStations.length > 0) && (
               <section className="space-y-6 mb-12">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
@@ -990,7 +1059,7 @@ const Artists: React.FC = () => {
 
                 <div className="relative">
                   {/* Left Scroll Button */}
-                  {canScrollLeft && (
+                  {!isLoadingStations && canScrollLeft && (
                     <button
                       onClick={() => scrollStations('left')}
                       className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/30 flex items-center justify-center text-white transition-all hover:scale-110 shadow-xl"
@@ -1003,7 +1072,7 @@ const Artists: React.FC = () => {
                   )}
 
                   {/* Right Scroll Button */}
-                  {canScrollRight && (
+                  {!isLoadingStations && canScrollRight && (
                     <button
                       onClick={() => scrollStations('right')}
                       className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/30 flex items-center justify-center text-white transition-all hover:scale-110 shadow-xl"
@@ -1019,40 +1088,73 @@ const Artists: React.FC = () => {
                   <div
                     ref={stationsScrollRef}
                     onScroll={checkScrollButtons}
-                    className="flex gap-4 overflow-x-auto overflow-y-hidden pb-4 px-14 scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent"
+                    className="flex gap-4 overflow-x-auto overflow-y-hidden pb-4 px-14 scrollbar-hide"
                     style={{
-                      scrollbarWidth: 'thin',
-                      scrollbarColor: 'rgba(255, 255, 255, 0.2) transparent',
+                      scrollbarWidth: 'none', // Firefox
+                      msOverflowStyle: 'none', // IE and Edge
                     }}
                   >
-                    {recommendedStations.map((station) => (
-                      <button
+                    {isLoadingStations ? (
+                      // Skeleton Loaders
+                      Array.from({ length: 5 }).map((_, index) => (
+                        <div
+                          key={`station-skeleton-${index}`}
+                          className="group relative overflow-hidden rounded-lg aspect-[4/5] min-h-[200px] min-w-[160px] flex-shrink-0 animate-pulse"
+                          style={{
+                            backgroundColor: '#FF6B35',
+                          }}
+                        >
+                          {/* Spotify Logo Skeleton */}
+                          <div className="absolute top-2.5 left-2.5 z-10 w-3.5 h-3.5 rounded bg-white/20"></div>
+                          
+                          {/* RADIO Badge Skeleton */}
+                          <div className="absolute top-2.5 right-2.5 z-10 w-12 h-4 rounded-full bg-white/20"></div>
+
+                          {/* Artist Images Skeleton */}
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
+                            <div className="relative flex items-center justify-center" style={{ width: '140px', height: '65px' }}>
+                              <div className="absolute rounded-full bg-white/20" style={{ width: '50px', height: '50px', left: 'calc(50% - 28px)', transform: 'translateX(-50%)' }}></div>
+                              <div className="absolute rounded-full bg-white/25" style={{ width: '60px', height: '60px', left: '50%', transform: 'translateX(-50%)', zIndex: 10 }}></div>
+                              <div className="absolute rounded-full bg-white/20" style={{ width: '50px', height: '50px', left: 'calc(50% + 28px)', transform: 'translateX(-50%)' }}></div>
+                            </div>
+                          </div>
+
+                          {/* Station Name Skeleton */}
+                          <div className="absolute bottom-3 left-3 right-3 z-10">
+                            <div className="h-4 w-3/4 rounded bg-white/20 mb-2"></div>
+                            <div className="h-3 w-1/2 rounded bg-white/15"></div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      recommendedStations.map((station) => (
+                        <button
                         key={station.id}
                         onClick={() => handleStationClick(station)}
-                        className="group relative overflow-hidden rounded-xl aspect-[4/5] min-h-[300px] min-w-[240px] flex-shrink-0 text-left transition-all hover:scale-[1.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/50"
+                        className="group relative overflow-hidden rounded-lg aspect-[4/5] min-h-[200px] min-w-[160px] flex-shrink-0 text-left transition-all hover:scale-[1.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/50"
                         style={{
                           backgroundColor: station.color,
                         }}
                       >
                         {/* Spotify Logo - Top Left */}
-                        <div className="absolute top-4 left-4 z-10">
-                          <SpotifyIcon size={20} className="text-white drop-shadow-md" />
+                        <div className="absolute top-2.5 left-2.5 z-10">
+                          <SpotifyIcon size={14} className="text-white drop-shadow-md" />
                         </div>
                         
                         {/* RADIO Badge - Top Right */}
-                        <div className="absolute top-4 right-4 z-10">
-                          <span className="px-2.5 py-1 text-xs font-bold text-white uppercase tracking-wide" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+                        <div className="absolute top-2.5 right-2.5 z-10">
+                          <span className="px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wide" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
                             RADIO
                           </span>
                         </div>
 
                         {/* Overlapping Artist Images - Center (matching image style) */}
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-                          <div className="relative flex items-center justify-center" style={{ width: '220px', height: '100px' }}>
+                          <div className="relative flex items-center justify-center" style={{ width: '140px', height: '65px' }}>
                             {station.artists.slice(0, 3).map((artist, index) => {
                               // Center image is larger, side images are smaller (matching image proportions)
-                              const size = index === 1 ? 95 : 80;
-                              const offset = index === 0 ? -45 : index === 1 ? 0 : 45;
+                              const size = index === 1 ? 60 : 50;
+                              const offset = index === 0 ? -28 : index === 1 ? 0 : 28;
                               
                               return (
                                 <div
@@ -1064,8 +1166,8 @@ const Artists: React.FC = () => {
                                     left: `calc(50% + ${offset}px)`,
                                     transform: 'translateX(-50%)',
                                     zIndex: index === 1 ? 10 : 10 - Math.abs(index - 1),
-                                    border: '3px solid rgba(255, 255, 255, 0.25)',
-                                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                                    border: '2px solid rgba(255, 255, 255, 0.25)',
+                                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
                                   }}
                                 >
                                   {artist.image ? (
@@ -1075,7 +1177,7 @@ const Artists: React.FC = () => {
                                       className="w-full h-full object-cover"
                                     />
                                   ) : (
-                                    <span className="text-gray-600 text-xl font-bold">
+                                    <span className="text-gray-600 text-sm font-bold">
                                       {artist.name.charAt(0).toUpperCase()}
                                     </span>
                                   )}
@@ -1084,15 +1186,15 @@ const Artists: React.FC = () => {
                             })}
                             {station.artists.length > 3 && (
                               <div
-                                className="absolute rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center text-white text-xs font-bold"
+                                className="absolute rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center text-white text-[10px] font-bold"
                                 style={{
-                                  width: '65px',
-                                  height: '65px',
-                                  left: 'calc(50% + 70px)',
+                                  width: '40px',
+                                  height: '40px',
+                                  left: 'calc(50% + 45px)',
                                   transform: 'translateX(-50%)',
                                   zIndex: 1,
-                                  border: '3px solid rgba(255, 255, 255, 0.25)',
-                                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                                  border: '2px solid rgba(255, 255, 255, 0.25)',
+                                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
                                 }}
                               >
                                 +{station.artists.length - 3}
@@ -1102,9 +1204,9 @@ const Artists: React.FC = () => {
                         </div>
 
                         {/* Station Name - Bottom Left (matching image style) */}
-                        <div className="absolute bottom-5 left-5 right-5 z-10">
+                        <div className="absolute bottom-3 left-3 right-3 z-10">
                           <h3 
-                            className="text-2xl font-bold text-white line-clamp-2 leading-tight" 
+                            className="text-sm font-bold text-white line-clamp-2 leading-tight" 
                             style={{ 
                               fontFamily: 'system-ui, -apple-system, sans-serif',
                               textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
@@ -1114,7 +1216,8 @@ const Artists: React.FC = () => {
                           </h3>
                         </div>
                       </button>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </div>
               </section>
@@ -1361,6 +1464,88 @@ const Artists: React.FC = () => {
                             </div>
                             <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                               <SpotifyIcon size={16} className="text-white/60" />
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
+
+                {/* Pakistani Popular Songs - Recommendations */}
+                <section className="space-y-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                      <p className="text-xs uppercase tracking-[0.35em] text-white/40">Pakistani</p>
+                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          AI Recommended
+                        </span>
+                    </div>
+                      <h2 className="text-2xl font-semibold">Recommended Pakistani Songs</h2>
+                    </div>
+                    <div className="flex items-center gap-3">
+                    <p className="text-sm text-white/50 sm:max-w-xl">
+                        Personalized Pakistani tracks recommended by Spotify AI.
+                      </p>
+                      <button
+                        onClick={() => fetchPopularTracks('pakistani')}
+                        disabled={isLoadingPopularTracks.pakistani}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Refresh recommendations"
+                      >
+                        {isLoadingPopularTracks.pakistani ? '...' : '↻'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {isLoadingPopularTracks.pakistani ? (
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {Array.from({ length: 8 }).map((_, index) => (
+                        <div
+                          key={`pakistani-track-skeleton-${index}`}
+                          className="rounded-lg border border-white/10 bg-white/5 p-2.5 animate-pulse"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="h-10 w-10 rounded-lg bg-white/10 flex-shrink-0" />
+                            <div className="flex-1 space-y-1.5">
+                              <div className="h-3.5 w-3/4 rounded bg-white/10" />
+                              <div className="h-2.5 w-1/2 rounded bg-white/5" />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : popularTracks.pakistani.length > 0 ? (
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {popularTracks.pakistani.slice(0, 12).map((track) => (
+                        <button
+                          key={track.id}
+                          type="button"
+                          onClick={() => handlePlayTrack(track)}
+                          className="group relative overflow-hidden rounded-lg border border-white/10 bg-white/5 p-2.5 text-left transition-all hover:border-white/20 hover:bg-white/10 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
+                        >
+                          <div className="flex items-center gap-2">
+                            {track.albumImage ? (
+                              <img
+                                src={track.albumImage}
+                                alt={track.album}
+                                className="h-10 w-10 rounded-lg object-cover flex-shrink-0"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center flex-shrink-0">
+                                <SpotifyIcon size={16} className="text-white/60" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-white truncate group-hover:text-purple-300 transition-colors">
+                                {track.name}
+                              </p>
+                              <p className="text-[10px] text-white/60 truncate mt-0.5">{track.artists}</p>
+                            </div>
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                              <SpotifyIcon size={14} className="text-white/60" />
                             </div>
                           </div>
                         </button>

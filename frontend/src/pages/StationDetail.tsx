@@ -160,7 +160,7 @@ const StationDetail: React.FC = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-black via-[#0b0618] to-[#1b0b2f] text-white">
-        <div className="container mx-auto px-4 py-8">
+        <div className="w-full">
           <div className="flex items-center justify-center min-h-[60vh]">
             <div className="text-center">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mb-4"></div>
@@ -172,71 +172,152 @@ const StationDetail: React.FC = () => {
     );
   }
 
+  // Generate a color for the station based on artist names
+  const getStationColor = (): string => {
+    const colors = [
+      '#FF6B35', // Red-orange
+      '#FF4757', // Red
+      '#FF6348', // Tomato red
+      '#FF8C42', // Orange
+      '#E74C3C', // Bright red
+      '#FF6B9D', // Pink-red
+      '#FF8E53', // Orange
+      '#FF5252', // Red
+    ];
+    // Use a hash of the station name to pick a consistent color
+    const hash = stationName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return colors[hash % colors.length];
+  };
+
+  const stationColor = getStationColor();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-[#0b0618] to-[#1b0b2f] text-white">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <button
-            onClick={() => navigate('/artists')}
-            className="text-gray-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/10"
-            title="Back to artists"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7"/>
-            </svg>
-          </button>
-          <div className="flex-1">
-            <h1 className="text-4xl font-bold text-white mb-2">{stationName || 'Station'}</h1>
-            <p className="text-sm text-gray-400">
-              {featuredArtists.map(a => a.name).join(' & ')} • {featuredTracks.length} tracks
-            </p>
+      <div className="w-full">
+        {/* Hero Section - Similar to Radio Cards */}
+        <div 
+          className="relative w-full min-h-[280px] md:min-h-[320px] flex items-center justify-center overflow-hidden px-6 md:px-12"
+          style={{ backgroundColor: stationColor }}
+        >
+          {/* Top Bar with Back Button, Logo, and Badge */}
+          <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-3">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate('/artists')}
+                className="text-white/90 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10 backdrop-blur-sm"
+                title="Back to artists"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+              </button>
+              <SpotifyIcon size={14} className="text-white drop-shadow-md" />
+            </div>
+            
+            <span className="px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wide bg-white/20 backdrop-blur-sm rounded-full" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+              RADIO
+            </span>
+          </div>
+
+          {/* Centered Content - Artist Images and Text Side by Side */}
+          <div className="flex items-center justify-center gap-8 md:gap-12 z-10">
+            {/* Left Side - Overlapping Artist Images */}
+            {featuredArtists.length > 0 && (
+              <div className="relative flex items-center justify-center flex-shrink-0">
+                <div className="relative flex items-center justify-center" style={{ width: '340px', height: '160px' }}>
+                  {featuredArtists.slice(0, 3).map((artist, index) => {
+                    // Center image is larger, side images are smaller
+                    const size = index === 1 ? 150 : 120;
+                    const offset = index === 0 ? -70 : index === 1 ? 0 : 70;
+                    
+                    return (
+                      <div
+                        key={artist.id}
+                        className="absolute rounded-full overflow-hidden bg-gray-300 flex items-center justify-center cursor-pointer hover:scale-115 transition-all duration-300 group"
+                        onClick={() => handleArtistClick(artist.id, artist.name, artist.image)}
+                        style={{
+                          width: `${size}px`,
+                          height: `${size}px`,
+                          left: `calc(50% + ${offset}px)`,
+                          transform: 'translateX(-50%)',
+                          zIndex: index === 1 ? 10 : 10 - Math.abs(index - 1),
+                          border: '3px solid rgba(255, 255, 255, 0.4)',
+                          boxShadow: '0 6px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
+                        }}
+                      >
+                        {artist.image ? (
+                          <img
+                            src={artist.image}
+                            alt={artist.name}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                          />
+                        ) : (
+                          <span className="text-gray-600 text-3xl font-bold">
+                            {artist.name.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                        {/* Hover overlay */}
+                        <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-300 rounded-full"></div>
+                      </div>
+                    );
+                  })}
+                  {featuredArtists.length > 3 && (
+                    <div
+                      className="absolute rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center text-white text-sm font-bold cursor-pointer hover:scale-115 transition-all duration-300"
+                      style={{
+                        width: '90px',
+                        height: '90px',
+                        left: 'calc(50% + 105px)',
+                        transform: 'translateX(-50%)',
+                        zIndex: 1,
+                        border: '3px solid rgba(255, 255, 255, 0.4)',
+                        boxShadow: '0 6px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
+                      }}
+                    >
+                      +{featuredArtists.length - 3}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Right Side - Station Name and Info */}
+            <div className="flex-shrink-0 text-left">
+              <h1 
+                className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3 line-clamp-2 leading-tight" 
+                style={{ 
+                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                  textShadow: '0 4px 12px rgba(0, 0, 0, 0.6)',
+                }}
+              >
+                {stationName || 'Station'}
+              </h1>
+              <p className="text-sm md:text-base text-white/95 font-medium mb-2" style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.5)' }}>
+                {featuredArtists.map(a => a.name).join(' & ')}
+              </p>
+              <p className="text-xs md:text-sm text-white/80" style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.5)' }}>
+                {featuredTracks.length} tracks
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Featured Artists */}
-        {featuredArtists.length > 0 && (
-          <section className="mb-12">
-            <h2 className="text-2xl font-semibold text-white mb-6">Artists</h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {featuredArtists.map((artist) => (
-                <button
-                  key={artist.id}
-                  onClick={() => handleArtistClick(artist.id, artist.name, artist.image)}
-                  className="rounded-xl border border-white/10 bg-white/5 p-6 text-center hover:bg-white/10 transition-all hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
-                >
-                  {artist.image ? (
-                    <img
-                      src={artist.image}
-                      alt={artist.name}
-                      className="w-32 h-32 rounded-full mx-auto mb-4 object-cover"
-                    />
-                  ) : (
-                    <div className="w-32 h-32 rounded-full mx-auto mb-4 bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                      <span className="text-4xl font-bold text-white">
-                        {artist.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                  <h3 className="text-xl font-semibold text-white mb-2">{artist.name}</h3>
-                  <p className="text-sm text-white/60">Click to view details</p>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Featured Tracks */}
+        {/* Content Section */}
+        <div className="w-full px-6 md:px-12 py-12 max-w-7xl mx-auto">
+          {/* Featured Tracks */}
         {featuredTracks.length > 0 && (
           <section>
-            <h2 className="text-2xl font-semibold text-white mb-6">Recommended Tracks</h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="flex items-center gap-3 mb-8">
+              <h2 className="text-3xl font-bold text-white">Recommended Tracks</h2>
+              <div className="h-px flex-1 bg-gradient-to-r from-white/20 to-transparent"></div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {featuredTracks.map((track) => (
                 <button
                   key={track.id}
                   type="button"
                   onClick={() => handlePlayTrack(track)}
-                  className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4 text-left transition-all hover:border-white/20 hover:bg-white/10 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
+                  className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4 text-left transition-all hover:border-white/20 hover:bg-white/10 hover:-translate-y-1 hover:shadow-lg hover:shadow-purple-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
                 >
                   <div className="flex items-center gap-3">
                     {track.albumImage ? (
@@ -272,6 +353,7 @@ const StationDetail: React.FC = () => {
             <p className="text-white/60">No tracks available for this station</p>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

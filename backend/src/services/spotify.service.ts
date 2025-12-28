@@ -158,6 +158,59 @@ const topEnglishArtists = [
   'Jimi Hendrix Experience'
 ];
 
+const topPakistaniArtists = [
+  'Atif Aslam',
+  'Ali Zafar',
+  'Strings',
+  'Junoon',
+  'Vital Signs',
+  'Nusrat Fateh Ali Khan',
+  'Abida Parveen',
+  'Mehdi Hassan',
+  'Ghulam Ali',
+  'Rahat Fateh Ali Khan',
+  'Shafqat Amanat Ali',
+  'Fariha Pervez',
+  'Hadiqa Kiani',
+  'Sajjad Ali',
+  'Zeb Bangash',
+  'Zeb & Haniya',
+  'Coke Studio',
+  'Noori',
+  'Call',
+  'EP',
+  'Karavan',
+  'Jal',
+  'Fuzon',
+  'Roxen',
+  'Aaroh',
+  'Mekaal Hasan Band',
+  'Farhan Saeed',
+  'Umair Jaswal',
+  'Asim Azhar',
+  'Hassan Raheem',
+  'Talha Anjum',
+  'Talha Yunus',
+  'Young Stunners',
+  'Rap Demon',
+  'Imran Khan',
+  'Bilal Saeed',
+  'Shuja Haider',
+  'Rahat Fateh Ali Khan',
+  'Shafqat Amanat Ali Khan',
+  'Abrar ul Haq',
+  'Sajjad Ali',
+  'Adnan Sami',
+  'Fakhar-e-Alam',
+  'Sajjad Ali',
+  'Hadiqa Kiani',
+  'Zeb Bangash',
+  'Zeb & Haniya',
+  'Mehdi Hassan',
+  'Ghulam Ali',
+  'Abida Parveen',
+];
+
 const topGlobalArtists = [
   'Bad Bunny',
   'BTS',
@@ -246,6 +299,8 @@ const topGlobalArtists = [
   'Ruger',
   'BNXN',
   'Khalid',
+  // Pakistani Artists
+  ...topPakistaniArtists,
   'The Weeknd',
   'Drake',
   'Justin Bieber',
@@ -393,7 +448,7 @@ const topGlobalArtists = [
   'Sonata Arctica'
 ];
 
-type ArtistCategory = 'punjabi' | 'english' | 'global';
+type ArtistCategory = 'punjabi' | 'english' | 'global' | 'pakistani';
 
 interface FormattedTrack {
   id: string;
@@ -456,6 +511,7 @@ const ARTIST_MARKET: Record<ArtistCategory, string> = {
   punjabi: 'IN',
   english: 'US',
   global: 'US',
+  pakistani: 'PK',
 };
 
 const artistIdCache = new Map<string, { id: string; expires: number }>();
@@ -485,6 +541,12 @@ const SECTION_CONFIG: Array<{
     title: 'Worldwide Vibes',
     description: 'Genre-bending icons bringing fresh sounds from every corner of the globe.',
     artistPool: topGlobalArtists,
+  },
+  {
+    key: 'pakistani',
+    title: 'Pakistani Legends',
+    description: 'Iconic voices and timeless melodies from Pakistan\'s music scene.',
+    artistPool: topPakistaniArtists,
   },
 ];
 
@@ -519,8 +581,6 @@ const formatSpotifyTrack = (track: any) => {
     popularity: track.popularity || 0,
     source: 'spotify' as const,
   };
-  
-  console.log(`✅ Formatted track: ${formatted.name}, externalUrl: ${formatted.externalUrl}, id: ${formatted.id}`);
   
   return formatted;
 };
@@ -608,11 +668,13 @@ const getArtistsForMood = (mood: string): Record<ArtistCategory, string[]> => {
   const punjabiCandidates = shuffleArray(topPunjabiArtists);
   const englishCandidates = shuffleArray(topEnglishArtists);
   const globalCandidates = shuffleArray(topGlobalArtists);
+  const pakistaniCandidates = shuffleArray(topPakistaniArtists);
 
   const selections: Record<ArtistCategory, string[]> = {
     punjabi: [],
     english: [],
     global: [],
+    pakistani: [],
   };
 
   switch (moodKey) {
@@ -652,6 +714,9 @@ const getArtistsForMood = (mood: string): Record<ArtistCategory, string[]> => {
   }
   if (!selections.global.length) {
     selections.global = globalCandidates.slice(0, 1);
+  }
+  if (!selections.pakistani.length) {
+    selections.pakistani = pakistaniCandidates.slice(0, 2);
   }
 
   return selections;

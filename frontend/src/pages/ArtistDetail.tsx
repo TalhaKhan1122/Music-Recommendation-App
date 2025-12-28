@@ -246,9 +246,9 @@ const ArtistDetail: React.FC = () => {
         hasActivePlayer ? 'pb-44 md:pb-52' : ''
       }`}
     >
-      <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
+      <div className="w-full py-10 space-y-8 border border-white/10 bg-white/5">
 
-        <section className="grid gap-8 lg:grid-cols-[320px,1fr]">
+        <section className="grid gap-8 lg:grid-cols-[320px,1fr] px-6">
           <div className="space-y-4">
             <div className="relative rounded-3xl overflow-hidden border border-white/10 bg-white/5 aspect-square">
               {artist.image ? (

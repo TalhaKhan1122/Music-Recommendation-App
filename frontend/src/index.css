@@ -23,6 +23,16 @@
   scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
 }
 
+/* Hide scrollbar but keep scrolling functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+
 @keyframes fadeInUp {
   from {
     opacity: 0;
