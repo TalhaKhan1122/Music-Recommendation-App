@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth, useSpotifyPlayer } from '../context';
 import { MenuIcon, LogoutIcon } from './icons';
+import BeatifyLogo from '../assets/beatify-logo.png';
 import PlaylistsSidePanel from './PlaylistsSidePanel';
+// import BeatifyLogo from './BeatifyLogo';
 
 const GlobalHeader: React.FC = () => {
   const navigate = useNavigate();
@@ -109,31 +111,23 @@ const GlobalHeader: React.FC = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link
-            to="/dashboard"
-            className="flex items-center gap-2 group"
-          >
-            <div className="relative">
-              <div className="absolute inset-0 bg-purple-500/20 blur-xl group-hover:bg-purple-500/30 transition-colors rounded-lg"></div>
-              <div className="relative bg-gradient-to-br from-purple-600 to-indigo-600 p-2 rounded-lg">
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-white"
-                >
-                  <path d="M9 18V5l12-2v13M9 18c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3zm12-3c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3zM9 12l12-2" />
-                </svg>
-              </div>
-            </div>
-            <span className="text-white text-lg font-bold bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">
-              MR
-            </span>
-          </Link>
+  to="/dashboard"
+  className="flex items-center  px-3 py-2"
+>
+  <img
+    src={BeatifyLogo}
+    alt="Beatify Logo"
+    className="h-14 sm:h-16 w-auto object-contain"
+  />
+
+  <span
+    className="text-white text-xl sm:text-2xl font-semibold leading-none"
+    style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
+  >
+    Beatify
+  </span>
+</Link>
+
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1">

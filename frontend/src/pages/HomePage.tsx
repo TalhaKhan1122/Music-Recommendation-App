@@ -3,13 +3,20 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Header, Hero, LoginSignupModal, AIModeSection } from '../components';
+import { Header, LoginSignupModal } from '../components';
+import NewHero from '../components/NewHero';
+import AIFacialRecognitionSection from '../components/AIFacialRecognitionSection';
+import RecommendationStationSection from '../components/RecommendationStationSection';
+import SearchPlayerSection from '../components/SearchPlayerSection';
+import DownloadSection from '../components/DownloadSection';
+import Footer from '../components/Footer';
 import { useAuth } from '../context';
 
 gsap.registerPlugin(ScrollTrigger);
 
 const HomePage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'login' | 'signup'>('signup');
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useAuth();
@@ -21,9 +28,19 @@ const HomePage: React.FC = () => {
       navigate('/dashboard', { replace: true });
     }
   }, [isAuthenticated, isLoading, navigate]);
-  const heroRef = useRef<HTMLElement>(null);
-  const aiSectionRef = useRef<HTMLElement>(null);
-  const headerRef = useRef<HTMLElement>(null);
+  
+  const heroRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+
+  const handleSignInClick = () => {
+    setActiveTab('login');
+    setIsModalOpen(true);
+  };
+
+  const handleSignUpClick = () => {
+    setActiveTab('signup');
+    setIsModalOpen(true);
+  };
 
   // Handle error messages from OAuth redirects
   useEffect(() => {
@@ -85,13 +102,11 @@ const HomePage: React.FC = () => {
 
       // Hero section animations
       if (heroRef.current) {
-        const heroContent = heroRef.current.querySelector('.hero-content');
-        const heroIllustration = heroRef.current.querySelector('.hero-illustration');
         const heroTitle = heroRef.current.querySelector('h1');
         const heroSubtitle = heroRef.current.querySelector('p');
-        const heroButton = heroRef.current.querySelector('button');
+        const heroButtons = heroRef.current.querySelectorAll('a');
 
-        // Title animation - split text effect
+        // Title animation
         if (heroTitle) {
           gsap.from(heroTitle, {
             y: 50,
@@ -113,43 +128,30 @@ const HomePage: React.FC = () => {
           });
         }
 
-        // Button animation
-        if (heroButton) {
-          gsap.from(heroButton, {
+        // Buttons animation
+        heroButtons.forEach((button, index) => {
+          gsap.from(button, {
             y: 20,
             opacity: 0,
             scale: 0.9,
             duration: 0.6,
-            delay: 0.6,
+            delay: 0.6 + index * 0.1,
             ease: 'back.out(1.7)',
           });
-        }
-
-        // Illustration animation - slide from right
-        if (heroIllustration) {
-          gsap.from(heroIllustration, {
-            x: 100,
-            opacity: 0,
-            duration: 1.2,
-            delay: 0.3,
-            ease: 'power3.out',
-          });
-        }
+        });
       }
 
-      // AI Mode Section animations with ScrollTrigger
-      if (aiSectionRef.current) {
-        const aiTitle = aiSectionRef.current.querySelector('h2');
-        const aiSubtitle = aiSectionRef.current.querySelector('p');
-        const aiCard = aiSectionRef.current.querySelector('.ai-card');
-        const aiText = aiSectionRef.current.querySelector('.ai-text');
-        const aiIllustration = aiSectionRef.current.querySelector('svg');
-
-        // Title and subtitle animation
-        if (aiTitle) {
-          gsap.from(aiTitle, {
+      // Section animations with ScrollTrigger
+      const sections = document.querySelectorAll('section[id]');
+      sections.forEach((section) => {
+        const title = section.querySelector('h2');
+        const paragraphs = section.querySelectorAll('p');
+        if (title) {
+          // Set initial state but ensure visibility
+          gsap.set(title, { opacity: 1, y: 0 });
+          gsap.from(title, {
             scrollTrigger: {
-              trigger: aiTitle,
+              trigger: section,
               start: 'top 80%',
               toggleActions: 'play none none none',
             },
@@ -159,11 +161,12 @@ const HomePage: React.FC = () => {
             ease: 'power3.out',
           });
         }
-
-        if (aiSubtitle) {
-          gsap.from(aiSubtitle, {
+        // Also animate paragraphs
+        paragraphs.forEach((p) => {
+          gsap.set(p, { opacity: 1 });
+          gsap.from(p, {
             scrollTrigger: {
-              trigger: aiSubtitle,
+              trigger: section,
               start: 'top 80%',
               toggleActions: 'play none none none',
             },
@@ -173,91 +176,41 @@ const HomePage: React.FC = () => {
             delay: 0.2,
             ease: 'power3.out',
           });
-        }
-
-        // Card animation
-        if (aiCard) {
-          gsap.from(aiCard, {
-            scrollTrigger: {
-              trigger: aiCard,
-              start: 'top 75%',
-              toggleActions: 'play none none none',
-            },
-            y: 60,
-            opacity: 0,
-            scale: 0.95,
-            duration: 1,
-            ease: 'power3.out',
-          });
-        }
-
-        // Text content animation
-        if (aiText) {
-          gsap.from(aiText, {
-            scrollTrigger: {
-              trigger: aiText,
-              start: 'top 80%',
-              toggleActions: 'play none none none',
-            },
-            x: -50,
-            opacity: 0,
-            duration: 0.8,
-            ease: 'power3.out',
-          });
-        }
-
-        // Illustration animation
-        if (aiIllustration) {
-          gsap.from(aiIllustration, {
-            scrollTrigger: {
-              trigger: aiIllustration,
-              start: 'top 80%',
-              toggleActions: 'play none none none',
-            },
-            x: 50,
-            opacity: 0,
-            duration: 1,
-            ease: 'power3.out',
-          });
-
-          // Animate sound waves
-          const waves = aiIllustration.querySelectorAll('path');
-          waves.forEach((wave, index) => {
-            gsap.to(wave, {
-              scrollTrigger: {
-                trigger: aiIllustration,
-                start: 'top 80%',
-                toggleActions: 'play none none none',
-              },
-              opacity: 0.8,
-              duration: 1.5,
-              delay: index * 0.1,
-              ease: 'power2.inOut',
-              yoyo: true,
-              repeat: -1,
-            });
-          });
-        }
-      }
+        });
+      });
     });
 
     return () => ctx.revert();
   }, []);
 
   return (
-    <div className="min-h-screen bg-black overflow-x-hidden">
+    <div className="min-h-screen bg-black overflow-x-hidden" style={{ scrollBehavior: 'smooth' }}>
       <div ref={headerRef}>
-        <Header onCtaClick={() => setIsModalOpen(true)} />
+        <Header 
+          onSignInClick={handleSignInClick}
+          onSignUpClick={handleSignUpClick}
+        />
       </div>
-      <section ref={heroRef} className="hero-section">
-        <Hero />
+      <section id="home" ref={heroRef} className="hero-section">
+        <NewHero onGetStarted={handleSignUpClick} />
       </section>
-      <section ref={aiSectionRef} className="ai-section">
-        <AIModeSection />
+      <section id="about" className="ai-recognition-section">
+        <AIFacialRecognitionSection />
       </section>
+      <section id="features" className="recommendation-station-section">
+        <RecommendationStationSection />
+      </section>
+      <section id="contact" className="search-player-section">
+        <SearchPlayerSection />
+      </section>
+      <section id="blog" className="download-section">
+        <DownloadSection onGetStarted={handleSignUpClick} />
+      </section>
+      <Footer />
       <LoginSignupModal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+        onClose={() => setIsModalOpen(false)}
+        initialTab={activeTab}
       />
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../context';
@@ -8,13 +8,21 @@ import { CloseIcon, EyeIcon, GoogleIcon } from './icons';
 interface LoginSignupModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: 'login' | 'signup';
 }
 
-const LoginSignupModal: React.FC<LoginSignupModalProps> = ({ isOpen, onClose }) => {
+const LoginSignupModal: React.FC<LoginSignupModalProps> = ({ isOpen, onClose, initialTab = 'signup' }) => {
   const navigate = useNavigate();
   const { login: loginUser, signup: signupUser } = useAuth();
   
-  const [activeTab, setActiveTab] = useState<'login' | 'signup'>('signup');
+  const [activeTab, setActiveTab] = useState<'login' | 'signup'>(initialTab);
+  
+  // Update activeTab when initialTab prop changes
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
