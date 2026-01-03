@@ -799,6 +799,33 @@ export const getArtistById = async (artistId: string, topTrackLimit?: number): P
   return result.data;
 };
 
+/**
+ * Get related artists for a given artist ID
+ * @param artistId - Spotify artist ID
+ */
+export const getRelatedArtists = async (artistId: string): Promise<ArtistMetadata[]> => {
+  const token = ensureAuthToken();
+
+  const url = `${API_BASE_URL}/music/artists/${artistId}/related`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const result: BaseApiResponse<ArtistMetadata[]> = await response.json();
+
+  if (!response.ok || result.success === false) {
+    const message = result?.message || `Failed to fetch related artists (Status: ${response.status})`;
+    throw new Error(message);
+  }
+
+  return result.data;
+};
+
 
 /**
  * Search for tracks by lyrics/words

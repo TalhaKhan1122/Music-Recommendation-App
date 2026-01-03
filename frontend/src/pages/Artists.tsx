@@ -9,8 +9,7 @@ import type {
   Track,
 } from '../api/music.api';
 import { getTopArtistsShowcase, searchSpotifyCatalog, getTracksByMood, getRecommendationsByArtists, getArtistById } from '../api/music.api';
-import { SpotifyIcon, MicIcon } from '../components/icons';
-import VoiceSearchModal from '../components/VoiceSearchModal';
+import { SpotifyIcon } from '../components/icons';
 import { useSpotifyPlayer, useFollowedArtists } from '../context';
 
 const INITIAL_LIMIT = 6;
@@ -106,34 +105,11 @@ const LoaderCard: React.FC<LoaderCardProps> = ({
 );
 
 const ArtistCardSkeleton: React.FC = () => (
-  <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 animate-pulse">
-    <div className="relative h-36 overflow-hidden bg-gradient-to-br from-purple-500/20 via-indigo-500/20 to-slate-900/40" />
-    <div className="space-y-2.5 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 space-y-1.5">
-          <div className="h-4 w-3/4 rounded bg-white/10" />
-          <div className="h-2.5 w-full rounded bg-white/5" />
-        </div>
-        <div className="flex flex-col items-end gap-1.5">
-          <div className="h-5 w-16 rounded-full bg-white/10" />
-          <div className="space-y-0.5">
-            <div className="h-2.5 w-20 rounded bg-white/5" />
-            <div className="h-2.5 w-16 rounded bg-white/5" />
-          </div>
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <div className="h-2.5 w-16 rounded bg-white/5" />
-        <div className="space-y-0.5">
-          <div className="h-3 w-full rounded bg-white/5" />
-          <div className="h-3 w-5/6 rounded bg-white/5" />
-        </div>
-      </div>
-      <div className="flex items-center justify-between gap-2 pt-1">
-        <div className="h-3 w-24 rounded bg-white/5" />
-        <div className="h-3 w-16 rounded bg-white/5" />
-      </div>
-    </div>
+  <div className="flex flex-col items-center gap-3 animate-pulse">
+    {/* Circular Skeleton */}
+    <div className="w-24 h-24 xs:w-28 xs:h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 lg:w-40 lg:h-40 xl:w-44 xl:h-44 2xl:w-48 2xl:h-48 rounded-full bg-white/10 border-2 border-white/20" />
+    {/* Name Skeleton */}
+    <div className="h-3 xs:h-3.5 sm:h-4 md:h-5 w-16 xs:w-20 sm:w-24 md:w-28 rounded bg-white/10" />
   </div>
 );
 
@@ -157,7 +133,6 @@ const Artists: React.FC = () => {
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [hasSearchResults, setHasSearchResults] = useState<boolean>(false);
-  const [isVoiceSearchOpen, setIsVoiceSearchOpen] = useState<boolean>(false);
   const [popularTracks, setPopularTracks] = useState<Record<string, Track[]>>({
     punjabi: [],
     english: [],
@@ -187,6 +162,8 @@ const Artists: React.FC = () => {
   const requestedLimitRef = useRef<Record<string, number>>({});
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastExecutedSearchRef = useRef<string>('');
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const autoFetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchArtists = useCallback(
     async (limitOverride?: number) => {
@@ -224,6 +201,39 @@ const Artists: React.FC = () => {
     },
     []
   );
+
+  // Calculate viewport size and cards that fit
+  useEffect(() => {
+    const updateViewportSize = () => {
+      setViewportSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    updateViewportSize();
+    window.addEventListener('resize', updateViewportSize);
+    return () => window.removeEventListener('resize', updateViewportSize);
+  }, []);
+
+  // Calculate cards per row based on screen width
+  const getCardsPerRow = useCallback((width: number): number => {
+    if (width >= 1920) return 10; // 3xl
+    if (width >= 1536) return 9;  // 2xl
+    if (width >= 1280) return 8;  // xl
+    if (width >= 1024) return 7;  // lg
+    if (width >= 768) return 6;   // md
+    if (width >= 640) return 5;    // sm
+    if (width >= 475) return 4;    // xs
+    return 3; // default
+  }, []);
+
+  // Calculate total cards needed - only one row
+  const calculateCardsNeeded = useCallback((width: number): number => {
+    const cardsPerRow = getCardsPerRow(width);
+    // Only return cards per row (one row)
+    return cardsPerRow;
+  }, [getCardsPerRow]);
 
   useEffect(() => {
     fetchArtists();
@@ -534,9 +544,12 @@ const Artists: React.FC = () => {
   }, [fetchArtists]);
 
   const handleLoadMore = useCallback(
-    async (category: string) => {
+    async (category: string, limitOverride?: number) => {
       const current = requestedLimitRef.current[category] ?? INITIAL_LIMIT;
-      const newLimit = current + LIMIT_STEP;
+      const newLimit = limitOverride ?? (current + LIMIT_STEP);
+      
+      // Don't fetch if limit hasn't increased
+      if (newLimit <= current) return;
       
       // Set loading state for this category
       setLoadingCategories((prev) => new Set(prev).add(category));
@@ -559,6 +572,45 @@ const Artists: React.FC = () => {
     },
     [fetchArtists]
   );
+
+  // Auto-fetch more artists if needed to fill one row
+  useEffect(() => {
+    if (viewportSize.width === 0 || isLoading || hasSearchResults) {
+      return;
+    }
+
+    const cardsNeeded = calculateCardsNeeded(viewportSize.width);
+    
+    // Clear any existing timeout
+    if (autoFetchTimeoutRef.current) {
+      clearTimeout(autoFetchTimeoutRef.current);
+    }
+
+    // Debounce the auto-fetch
+    autoFetchTimeoutRef.current = setTimeout(() => {
+      sections.forEach((section) => {
+        const categoryLimit = requestedLimitRef.current[section.category] ?? INITIAL_LIMIT;
+        const sortedArtists = [...section.artists].sort(
+          (a, b) => (b.popularity ?? 0) - (a.popularity ?? 0)
+        );
+        const visibleArtists = sortedArtists.slice(0, categoryLimit);
+        
+        // If we don't have enough artists to fill one row, fetch more
+        if (visibleArtists.length < cardsNeeded && hasMoreMap[section.category]) {
+          const newLimit = Math.max(cardsNeeded, categoryLimit + LIMIT_STEP);
+          if (newLimit > categoryLimit && !loadingCategories.has(section.category)) {
+            handleLoadMore(section.category, newLimit);
+          }
+        }
+      });
+    }, 500);
+
+    return () => {
+      if (autoFetchTimeoutRef.current) {
+        clearTimeout(autoFetchTimeoutRef.current);
+      }
+    };
+  }, [viewportSize.width, sections, isLoading, hasSearchResults, hasMoreMap, loadingCategories, calculateCardsNeeded, handleLoadMore]);
 
   const executeSearch = useCallback(
     async (query: string, { force } = { force: false }) => {
@@ -642,25 +694,6 @@ const Artists: React.FC = () => {
     setSearchQuery(event.target.value);
   };
 
-  const handleVoiceTranscript = (transcript: string) => {
-    // Final transcript - update search query and trigger search
-    setSearchQuery(transcript);
-    // Automatically trigger search
-    setTimeout(() => {
-      executeSearch(transcript);
-    }, 300);
-    toast.info(`Searching for: "${transcript}"`, {
-      position: 'top-right',
-      autoClose: 2000,
-    });
-  };
-
-  const handleVoiceError = (error: string) => {
-    toast.error(error, {
-      position: 'top-right',
-      autoClose: 4000,
-    });
-  };
 
   const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -738,23 +771,6 @@ const Artists: React.FC = () => {
   );
 
   const renderArtistCard = (artist: ArtistMetadata, categoryTitle: string) => {
-    const isArtistFollowed = artist.id ? isFollowed(artist.id) : false;
-
-    const handleFollowClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
-      event.stopPropagation();
-      event.preventDefault();
-      try {
-        const action = await toggleFollow(artist);
-        toast.info(
-          `${action === 'followed' ? 'Following' : 'Unfollowed'} ${artist.name}`,
-          { toastId: `follow-${artist.id}` }
-        );
-      } catch (err: any) {
-        const message = err?.message || 'Unable to update follow status right now.';
-        toast.error(message);
-      }
-    };
-
     const handleCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
@@ -769,70 +785,30 @@ const Artists: React.FC = () => {
         tabIndex={0}
         onClick={() => navigate(`/artists/${artist.id}`, { state: { artist, category: categoryTitle } })}
         onKeyDown={handleCardKeyDown}
-        className="group overflow-hidden rounded-2xl border border-white/10 bg-white/5 text-left transition-transform hover:-translate-y-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
+        className="group flex flex-col items-center gap-3 cursor-pointer transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400 focus-visible:outline-offset-2 rounded-lg"
       >
-        <div className="relative h-36 overflow-hidden">
+        {/* Circular Artist Image */}
+        <div className="relative w-24 h-24 xs:w-28 xs:h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 lg:w-40 lg:h-40 xl:w-44 xl:h-44 2xl:w-48 2xl:h-48 rounded-full overflow-hidden border-2 border-white/20 group-hover:border-white/40 transition-all">
           {artist.image ? (
             <img
               src={artist.image}
               alt={artist.name}
-              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
               loading="lazy"
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-500/40 via-indigo-500/40 to-slate-900 text-white/70 text-xs">
-              No Image
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-500/40 via-indigo-500/40 to-slate-900">
+              <span className="text-white/70 text-xs xs:text-sm sm:text-base md:text-lg lg:text-xl font-semibold">
+                {getArtistInitials(artist.name)}
+              </span>
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
         </div>
-        <div className="space-y-2.5 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <h3 className="text-base font-semibold truncate">{artist.name}</h3>
-              <p className="text-[0.65rem] text-white/60 mt-0.5 line-clamp-1">{formatGenres(artist.genres)}</p>
-            </div>
-            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-              <button
-                type="button"
-                onClick={handleFollowClick}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[0.55rem] uppercase tracking-[0.25em] transition-colors ${
-                  isArtistFollowed
-                    ? 'border-purple-400 bg-purple-500/30 text-purple-100 hover:bg-purple-500/40'
-                    : 'border-white/20 bg-white/10 text-white/80 hover:bg-white/20'
-                }`}
-                aria-pressed={isArtistFollowed}
-              >
-                {isArtistFollowed ? 'Following' : 'Follow'}
-              </button>
-              <div className="text-right text-[0.65rem] text-white/50">
-                <p className="leading-tight">{formatFollowers(artist.followers)}</p>
-                <p className="leading-tight">Pop. {artist.popularity ?? '--'}</p>
-              </div>
-            </div>
-          </div>
-
-          {artist.topTracks?.length ? (
-            <div>
-              <p className="text-[0.6rem] uppercase tracking-[0.25em] text-white/40 mb-1.5">Top Tracks</p>
-              <ul className="space-y-0.5 text-[0.75rem] text-white/80">
-                {artist.topTracks.slice(0, 2).map((track: Track, index: number) => (
-                  <li key={track.id || `${artist.id}-${index}`} className="truncate">• {track.name}</li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <p className="text-[0.65rem] text-white/40">Loading tracks...</p>
-          )}
-
-          <div className="flex items-center justify-between gap-2 text-[0.6rem] uppercase tracking-[0.25em] text-white/60 pt-1">
-            <span className="inline-flex items-center gap-1.5">
-              <SpotifyIcon size={12} />
-              <span>Spotify</span>
-            </span>
-            <span className="text-purple-300 text-[0.65rem]">{'View ->'}</span>
-          </div>
-        </div>
+        
+        {/* Artist Name */}
+        <h3 className="text-white text-[11px] xs:text-xs sm:text-sm md:text-base lg:text-lg font-medium text-center w-full max-w-[100px] xs:max-w-[120px] sm:max-w-[140px] md:max-w-[160px] lg:max-w-[180px] xl:max-w-[200px] truncate px-1">
+          {artist.name}
+        </h3>
       </div>
     );
   };
@@ -858,51 +834,68 @@ const Artists: React.FC = () => {
           </button>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="space-y-4">
-            <h3 className="text-sm uppercase tracking-[0.35em] text-white/40">Artists</h3>
-            {searchResults.artists.length === 0 ? (
-              <p className="text-sm text-white/60">No matching artists found.</p>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {searchResults.artists.map((artist: ArtistMetadata) =>
-                  renderArtistCard(artist, 'Search Results'),
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <h3 className="text-sm uppercase tracking-[0.35em] text-white/40">Tracks</h3>
-            {searchResults.tracks.length === 0 ? (
-              <p className="text-sm text-white/60">No matching tracks found.</p>
-            ) : (
-              <div className="space-y-3">
-                {searchResults.tracks.map((track: Track) => (
-                  <button
-                    key={track.id}
-                    type="button"
-                    onClick={() => handlePlayFromSearch(track)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition-colors hover:bg-white/10"
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-base font-semibold">{track.name}</p>
-                        <p className="text-xs text-white/50">
-                          {track.artists}
-                          {track.album ? ` - ${track.album}` : ''}
-                        </p>
+        <div className="space-y-4">
+          <h3 className="text-sm uppercase tracking-[0.35em] text-white/40">Tracks</h3>
+          {searchResults.tracks.length === 0 ? (
+            <p className="text-sm text-white/60">No matching tracks found.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {searchResults.tracks.map((track: Track) => (
+                <button
+                  key={track.id}
+                  type="button"
+                  onClick={() => handlePlayFromSearch(track)}
+                  className="w-full flex items-center gap-3 sm:gap-4 px-2 sm:px-3 py-2 sm:py-2.5 rounded-md hover:bg-white/5 transition-colors group"
+                >
+                  {/* Artist/Album Image - Circular */}
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 flex-shrink-0 rounded-full overflow-hidden bg-white/10">
+                    {track.albumImage ? (
+                      <img
+                        src={track.albumImage}
+                        alt={track.artists || track.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500/20 to-indigo-500/20">
+                        <svg className="w-6 h-6 sm:w-7 sm:h-7 text-white/30" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 3a1 1 0 00-1.447-.894L8.763 6H5a3 3 0 000 6h.28l1.771 5.316A1 1 0 008 18h1a1 1 0 001-1v-4.382l6.553 3.276A1 1 0 0018 15V3z" clipRule="evenodd" />
+                        </svg>
                       </div>
-                      <span className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-white/60">
-                        <SpotifyIcon size={16} />
-                        Play in MR
-                      </span>
-                    </div>
+                    )}
+                  </div>
+
+                  {/* Track Info */}
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-sm sm:text-base font-medium truncate group-hover:text-[#1DB954] transition-colors">
+                      {track.name}
+                    </p>
+                    <p className="text-xs sm:text-sm text-white/50 truncate">
+                      {track.artists}
+                      {track.album ? ` • ${track.album}` : ''}
+                    </p>
+                  </div>
+
+                  {/* Play Button */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePlayFromSearch(track);
+                    }}
+                    className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 transition-all flex-shrink-0 group/play"
+                  >
+                    <SpotifyIcon size={14} className="text-white/70 group-hover/play:text-white" />
+                    <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-white/70 group-hover/play:text-white hidden sm:inline">
+                      Play in Beatify
+                    </span>
+                    <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-white/70 group-hover/play:text-white sm:hidden">
+                      Play
+                    </span>
                   </button>
-                ))}
-              </div>
-            )}
-          </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </section>
     );
@@ -914,119 +907,169 @@ const Artists: React.FC = () => {
         hasActivePlayer ? 'pb-44 md:pb-52' : ''
       }`}
     >
-      <div className="w-full py-12">
-        <div className="flex flex-col gap-10 lg:grid lg:grid-cols-[80px_minmax(0,1fr)] lg:items-start px-6">
-          <aside className="order-last mt-8 lg:order-first lg:mt-0 lg:h-[calc(100vh-8rem)] lg:sticky lg:top-24">
-            <div className="flex h-full flex-col items-center rounded-2xl border border-white/10 bg-[#09060f]/95 px-2 py-4 shadow-[0_25px_70px_rgba(20,0,40,0.45)] backdrop-blur-xl">
+      <div className="w-full py-6 sm:py-8 md:py-12">
+        <div className="flex flex-col gap-4 xs:gap-5 sm:gap-6 md:gap-8 lg:gap-10 lg:grid lg:grid-cols-[80px_minmax(0,1fr)] lg:items-start px-3 xs:px-4 sm:px-5 md:px-6">
+          <aside className="order-first mb-4 sm:mb-6 md:mb-8 lg:order-first lg:mb-0 lg:h-[calc(100vh-8rem)] lg:sticky lg:top-24">
+            <div className="flex h-full flex-col items-center rounded-lg xs:rounded-xl sm:rounded-2xl border border-white/10 bg-[#09060f]/95 px-1.5 xs:px-2 sm:px-2.5 md:px-2 py-2 xs:py-2.5 sm:py-3 md:py-4 shadow-[0_25px_70px_rgba(20,0,40,0.45)] backdrop-blur-xl">
               {hasFollowedArtists ? (
-                <ul className="flex gap-4 overflow-x-auto pb-2 lg:flex-1 lg:flex-col lg:gap-3 lg:overflow-y-auto lg:overflow-x-visible custom-scroll lg:items-center">
-                  {followedArtistList.map((artist) => (
-                    <li key={artist.id} className="flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleFollowedArtistSelect(artist)}
-                        className="group relative flex items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
-                        title={artist.name}
-                      >
-                        <span className="relative inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-black/40 shadow-[0_8px_16px_rgba(0,0,0,0.4)] transition group-hover:scale-110 group-hover:border-purple-400/60">
-                          {artist.image ? (
-                            <img
-                              src={artist.image}
-                              alt={artist.name}
-                              className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <span className="text-xs font-semibold uppercase text-white/80">
-                              {getArtistInitials(artist.name)}
-                            </span>
-                          )}
-                        </span>
-                        <span className="sr-only">{artist.name}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  {/* Mobile/Tablet: Horizontal Scrollable */}
+                  <ul className="flex gap-2 xs:gap-2.5 sm:gap-3 md:gap-4 overflow-x-auto pb-2 scrollbar-hide w-full lg:hidden">
+                    {followedArtistList.map((artist) => (
+                      <li key={artist.id} className="flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleFollowedArtistSelect(artist)}
+                          className="group relative flex items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
+                          title={artist.name}
+                        >
+                          <span className="relative inline-flex h-10 w-10 xs:h-11 xs:w-11 sm:h-12 sm:w-12 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-black/40 shadow-[0_8px_16px_rgba(0,0,0,0.4)] transition group-hover:scale-110 group-hover:border-purple-400/60">
+                            {artist.image ? (
+                              <img
+                                src={artist.image}
+                                alt={artist.name}
+                                className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <span className="text-[10px] xs:text-xs font-semibold uppercase text-white/80">
+                                {getArtistInitials(artist.name)}
+                              </span>
+                            )}
+                          </span>
+                          <span className="sr-only">{artist.name}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  
+                  {/* Desktop: Vertical Scrollable */}
+                  <ul className="hidden lg:flex lg:flex-1 lg:flex-col lg:gap-3 lg:overflow-y-auto lg:overflow-x-visible custom-scroll lg:items-center w-full">
+                    {followedArtistList.map((artist) => (
+                      <li key={artist.id} className="flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleFollowedArtistSelect(artist)}
+                          className="group relative flex items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
+                          title={artist.name}
+                        >
+                          <span className="relative inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-black/40 shadow-[0_8px_16px_rgba(0,0,0,0.4)] transition group-hover:scale-110 group-hover:border-purple-400/60">
+                            {artist.image ? (
+                              <img
+                                src={artist.image}
+                                alt={artist.name}
+                                className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <span className="text-xs font-semibold uppercase text-white/80">
+                                {getArtistInitials(artist.name)}
+                              </span>
+                            )}
+                          </span>
+                          <span className="sr-only">{artist.name}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               ) : (
-                <div className="flex flex-col items-center justify-center h-full px-2 text-center">
-                  <p className="text-[0.5rem] font-semibold uppercase tracking-[0.7em] text-white/35 mb-2">
+                <div className="flex flex-col items-center justify-center h-full px-1.5 xs:px-2 text-center py-4 lg:py-0">
+                  <p className="text-[0.4rem] xs:text-[0.5rem] font-semibold uppercase tracking-[0.7em] text-white/35 mb-1 xs:mb-2">
                     Your Library
                   </p>
-                  <p className="text-xs text-white/50">Follow artists to see them here</p>
+                  <p className="text-[10px] xs:text-xs text-white/50 leading-tight">Follow artists to see them here</p>
                 </div>
               )}
             </div>
           </aside>
 
-          <div className="space-y-10">
-            {/* Voice Search Button at Top */}
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setIsVoiceSearchOpen(true)}
-                className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm text-white/70 hover:bg-white/20 hover:text-white transition-colors"
-                title="Voice Search"
-              >
-                <MicIcon size={20} />
-                <span>Voice Search</span>
-              </button>
-            </div>
-
-            <header className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <div className="space-y-3">
-                <p className="text-xs uppercase tracking-[0.35em] text-white/40">Spotify Artist Showcase</p>
-                <h1 className="text-4xl font-semibold">Search &amp; Explore Top Artists</h1>
-                <p className="text-sm text-white/60 max-w-2xl">
-                  Dive into curated Punjabi, English and global stars, or jump straight to the songs you love. Tap an artist to view their top tracks and queue them in the MR player.
-                </p>
-                <p className="text-xs text-white/40">
-                  Showing up to {meta.limitPerCategory || INITIAL_LIMIT} artists per category · Last synced{' '}
-                  {meta.fetchedAt ? new Date(meta.fetchedAt).toLocaleString() : 'just now'}
-                </p>
-              </div>
-              <form onSubmit={handleSearchSubmit} className="w-full max-w-xl space-y-3">
-                <div className="relative flex items-center rounded-full border border-white/15 bg-white/5 transition-colors focus-within:border-purple-400/70 focus-within:bg-white/10">
+          <div className="space-y-6 sm:space-y-8 md:space-y-10">
+            {/* Centered Search Bar */}
+            <div className="flex justify-center items-center w-full px-4">
+              <form onSubmit={handleSearchSubmit} className="w-full max-w-3xl">
+                <div className="relative flex items-center rounded-full bg-[#1a1a1a] border border-white/10 transition-all duration-200 focus-within:border-white/20 hover:border-white/15">
+                  {/* Search Icon */}
+                  <div className="absolute left-4 sm:left-5 flex items-center justify-center pointer-events-none">
+                    <svg 
+                      width="20" 
+                      height="20" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-white/70"
+                    >
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <path d="m21 21-4.35-4.35"></path>
+                    </svg>
+                  </div>
+                  
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={handleSearchChange}
-                    placeholder="Search for artists or songs, or use voice search"
-                    className="flex-1 bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none px-5 py-3 pr-20"
+                    placeholder="What do you want to play?"
+                    className={`flex-1 bg-transparent text-base sm:text-lg text-white placeholder:text-white/60 focus:outline-none pl-12 sm:pl-14 py-4 sm:py-5 ${
+                      searchQuery ? 'pr-20 sm:pr-24' : 'pr-16 sm:pr-20'
+                    }`}
                     aria-label="Search Spotify"
                   />
+                  
+                  {/* Clear Button (when there's text) */}
                   {searchQuery && (
-                    <div className="absolute right-2 flex items-center">
-                      <button
-                        type="button"
-                        onClick={handleClearSearch}
-                        className="text-xs uppercase tracking-[0.3em] text-white/40 hover:text-white/70 transition-colors px-2 py-1"
-                        aria-label="Clear search"
+                    <button
+                      type="button"
+                      onClick={handleClearSearch}
+                      className="absolute right-14 sm:right-16 flex items-center justify-center w-6 h-6 rounded-full hover:bg-white/10 transition-colors group"
+                      aria-label="Clear search"
+                    >
+                      <svg 
+                        width="14" 
+                        height="14" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-white/50 group-hover:text-white transition-colors"
                       >
-                        Clear
-                      </button>
-                    </div>
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
                   )}
+                  
+                  {/* Separator */}
+                  <div className="absolute right-12 sm:right-14 h-6 w-px bg-white/20"></div>
+                  
+                  {/* Right Icon (Folder/Queue) */}
                   <button
-                    type="submit"
-                    disabled={isSearching}
-                    className="absolute right-0 top-0 bottom-0 inline-flex items-center justify-center rounded-r-full bg-purple-500 px-6 text-xs font-semibold uppercase tracking-[0.3em] text-white transition-colors hover:bg-purple-400 disabled:bg-purple-500/50"
+                    type="button"
+                    className="absolute right-4 sm:right-5 flex items-center justify-center w-8 h-8 rounded-full hover:bg-white/10 transition-colors group"
+                    aria-label="Queue"
                   >
-                    {isSearching ? 'Searching...' : 'Search'}
+                    <svg 
+                      width="20" 
+                      height="20" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-white/70 group-hover:text-white transition-colors"
+                    >
+                      <path d="M4 7h16M4 12h16M4 17h16"></path>
+                    </svg>
                   </button>
                 </div>
-                <p className="text-xs text-white/40">
-                  Try artist names like "Karan Aujla" or songs like "Cruel Summer". Use voice search button at the top.
-                </p>
               </form>
-            </header>
+            </div>
 
-            {/* Voice Search Modal */}
-            <VoiceSearchModal
-              isOpen={isVoiceSearchOpen}
-              onClose={() => setIsVoiceSearchOpen(false)}
-              onTranscript={handleVoiceTranscript}
-              onError={handleVoiceError}
-            />
 
             {searchError && (
               <div className="rounded-3xl border border-red-500/40 bg-red-500/10 px-6 py-4 text-sm text-red-200">
@@ -1572,7 +1615,7 @@ const Artists: React.FC = () => {
             )}
 
             {isLoading && sections.length === 0 && (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-9 3xl:grid-cols-10 gap-2 xs:gap-3 sm:gap-4 md:gap-5 lg:gap-6 justify-items-center">
                 {Array.from({ length: INITIAL_LIMIT }).map((_, index) => (
                   <ArtistCardSkeleton key={`skeleton-${index}`} />
                 ))}
@@ -1580,26 +1623,28 @@ const Artists: React.FC = () => {
             )}
 
             {sections.map((section) => {
-              const categoryLimit = requestedLimitRef.current[section.category] ?? INITIAL_LIMIT;
               const sortedArtists = [...section.artists].sort(
                 (a, b) => (b.popularity ?? 0) - (a.popularity ?? 0)
               );
-              const visibleArtists = sortedArtists.slice(0, categoryLimit);
+              // Only show one row of artists based on screen size
+              const cardsPerRow = getCardsPerRow(viewportSize.width || (typeof window !== 'undefined' ? window.innerWidth : 1024));
+              // Limit to exactly one row
+              const visibleArtists = sortedArtists.slice(0, cardsPerRow);
               const remainingArtists = sortedArtists.length - visibleArtists.length;
               const hasMoreFromServer = hasMoreMap[section.category] ?? false;
               const hasMore = remainingArtists > 0 || hasMoreFromServer;
 
               return (
-                <section key={section.category} className="space-y-6">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <section key={section.category} className="space-y-4 sm:space-y-6">
+                  <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.35em] text-white/40">{section.category}</p>
-                      <h2 className="text-2xl font-semibold">{section.title}</h2>
+                      <p className="text-[10px] xs:text-xs uppercase tracking-[0.35em] text-white/40">{section.category}</p>
+                      <h2 className="text-xl xs:text-2xl font-semibold">{section.title}</h2>
                     </div>
-                    <p className="text-sm text-white/50 sm:max-w-xl">{section.description}</p>
+                    <p className="text-xs xs:text-sm text-white/50 sm:max-w-xl">{section.description}</p>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-9 3xl:grid-cols-10 gap-2 xs:gap-3 sm:gap-4 md:gap-5 lg:gap-6 justify-items-center">
                     {visibleArtists.map((artist) => renderArtistCard(artist, section.title))}
                   </div>
 

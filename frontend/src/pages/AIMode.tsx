@@ -929,34 +929,8 @@ const AIMode: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden" style={{ 
-      background: 'linear-gradient(135deg, #0a0a0a 0%, #1a0a1a 25%, #0f0f1a 50%, #1a0a1a 75%, #0a0a0a 100%)'
-    }}>
-      {/* Animated background particles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(15)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute rounded-full opacity-20"
-            style={{
-              width: `${Math.random() * 4 + 2}px`,
-              height: `${Math.random() * 4 + 2}px`,
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              background: `hsl(${Math.random() * 60 + 270}, 70%, 70%)`,
-              animation: `float ${Math.random() * 10 + 10}s infinite ease-in-out`,
-              animationDelay: `${Math.random() * 5}s`,
-            }}
-          />
-        ))}
-      </div>
-
+    <div className="min-h-screen bg-black text-white">
       <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) translateX(0px); }
-          33% { transform: translateY(-20px) translateX(10px); }
-          66% { transform: translateY(20px) translateX(-10px); }
-        }
         @keyframes pulse-glow {
           0%, 100% { opacity: 0.4; transform: scale(1); }
           50% { opacity: 0.6; transform: scale(1.05); }
@@ -967,36 +941,25 @@ const AIMode: React.FC = () => {
         }
       `}</style>
 
-      <div className="container mx-auto px-6 py-12 max-w-5xl relative z-10">
-        <div className="text-center mb-10">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4" style={{ 
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-            background: 'linear-gradient(135deg, #ffffff 0%, #ec4899 50%, #a78bfa 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}>
+      <div className="w-full px-4 sm:px-6 md:px-8 lg:px-12 py-8 sm:py-12 max-w-6xl mx-auto">
+        {/* Header Section */}
+        <div className="text-center mb-8 sm:mb-12">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-white mb-3 sm:mb-4">
             AI Mood Detection
           </h1>
-          <p className="text-gray-300 text-lg">
+          <p className="text-sm sm:text-base text-white/70 max-w-2xl mx-auto">
             Let our AI analyze your facial expression to recommend the perfect music
           </p>
         </div>
 
         {error ? (
-          <div className="bg-red-500/20 border-2 border-red-500/50 rounded-2xl p-6 text-center backdrop-blur-sm">
-            <p className="text-red-400 font-semibold">{error}</p>
+          <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 sm:p-6 text-center mb-6">
+            <p className="text-red-400 font-semibold text-sm sm:text-base">{error}</p>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-6 sm:space-y-8">
             {/* Video Preview */}
-            <div className="relative rounded-3xl overflow-hidden"
-              style={{
-                background: 'rgba(20, 20, 30, 0.7)',
-                backdropFilter: 'blur(30px)',
-                border: '2px solid rgba(236, 72, 153, 0.3)',
-                boxShadow: '0 20px 60px rgba(236, 72, 153, 0.2)',
-              }}
+            <div className="relative rounded-xl sm:rounded-2xl overflow-hidden bg-white/5 border border-white/10"
             >
               <div className="relative">
                 <video
@@ -1014,22 +977,21 @@ const AIMode: React.FC = () => {
                 />
                 
                 {!isDetecting && (
-                  <div className="py-32 text-center">
-                    <div className="text-gray-400 mb-4 relative">
+                  <div className="py-16 sm:py-24 md:py-32 text-center">
+                    <div className="text-white/40 mb-4 relative">
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-32 h-32 rounded-full"
+                        <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-purple-500/20"
                           style={{
-                            background: 'radial-gradient(circle, rgba(236, 72, 153, 0.2) 0%, transparent 70%)',
                             animation: 'pulse-glow 3s ease-in-out infinite',
                           }}
                         ></div>
                       </div>
-                      <svg className="w-24 h-24 mx-auto opacity-60 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 mx-auto opacity-60 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                       </svg>
                     </div>
-                    <p className="text-gray-300 font-medium">Camera not active</p>
-                    <p className="text-gray-500 text-sm mt-2">Click "Start Camera" to begin</p>
+                    <p className="text-white/70 font-medium text-sm sm:text-base">Camera not active</p>
+                    <p className="text-white/50 text-xs sm:text-sm mt-2">Click "Start Camera" to begin</p>
                   </div>
                 )}
               </div>
@@ -1038,24 +1000,12 @@ const AIMode: React.FC = () => {
             {/* Mood Display - Always show if detecting or if mood is set */}
             {(mood || isDetecting) && (
               <div 
-                className="rounded-3xl p-10 text-center relative overflow-hidden"
-                style={{
-                  background: mood 
-                    ? `rgba(20, 20, 30, 0.8)` 
-                    : 'rgba(20, 20, 30, 0.7)',
-                  backdropFilter: 'blur(30px)',
-                  border: mood 
-                    ? `2px solid ${getMoodColor(mood)}50` 
-                    : '2px solid rgba(107, 114, 128, 0.4)',
-                  boxShadow: mood 
-                    ? `0 20px 60px ${getMoodColor(mood)}30` 
-                    : '0 20px 60px rgba(107, 114, 128, 0.2)',
-                }}
+                className="rounded-xl sm:rounded-2xl p-6 sm:p-8 md:p-10 text-center relative overflow-hidden bg-white/5 border border-white/10"
               >
                 {/* Animated gradient background */}
                 {mood && (
                   <div 
-                    className="absolute inset-0 opacity-30"
+                    className="absolute inset-0 opacity-20"
                     style={{
                       background: `radial-gradient(circle at 50% 50%, ${getMoodColor(mood)} 0%, transparent 70%)`,
                       animation: 'pulse-glow 3s ease-in-out infinite',
@@ -1068,7 +1018,7 @@ const AIMode: React.FC = () => {
                     <>
                       <div 
                         key={`emoji-${moodChangeCount}`} 
-                        className="text-8xl mb-6 transition-all duration-500"
+                        className="text-6xl sm:text-7xl md:text-8xl mb-4 sm:mb-6 transition-all duration-500"
                         style={{
                           animation: 'mood-pulse 2s ease-in-out infinite',
                           filter: `drop-shadow(0 0 20px ${getMoodColor(mood)}80)`,
@@ -1078,15 +1028,11 @@ const AIMode: React.FC = () => {
                       </div>
                       <h2 
                         key={`mood-${moodChangeCount}`}
-                        className="text-4xl md:text-5xl font-bold text-white mb-3 capitalize transition-all duration-300" 
-                        style={{ 
-                          fontFamily: 'system-ui, -apple-system, sans-serif',
-                          textShadow: `0 0 20px ${getMoodColor(mood)}50`,
-                        }}
+                        className="text-3xl sm:text-4xl md:text-5xl font-black text-white mb-3 sm:mb-4 capitalize transition-all duration-300" 
                       >
                         {mood}
                       </h2>
-                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-4"
+                      <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full mb-3 sm:mb-4"
                         style={{
                           background: `${getMoodColor(mood)}20`,
                           border: `1px solid ${getMoodColor(mood)}50`,
@@ -1099,25 +1045,25 @@ const AIMode: React.FC = () => {
                             animation: 'pulse-glow 2s ease-in-out infinite',
                           }}
                         ></div>
-                        <p className="text-white font-semibold">
+                        <p className="text-white font-semibold text-xs sm:text-sm">
                           Confidence: {Math.round(confidence * 100)}%
                         </p>
                       </div>
                       {moodChangeCount > 0 && (
-                        <p className="text-xs text-gray-400 italic">
+                        <p className="text-xs text-white/40 italic">
                           Mood updated {moodChangeCount} time{moodChangeCount !== 1 ? 's' : ''}
                         </p>
                       )}
                     </>
                   ) : (
                     <>
-                      <div className="text-8xl mb-6" style={{ animation: 'mood-pulse 2s ease-in-out infinite' }}>
+                      <div className="text-6xl sm:text-7xl md:text-8xl mb-4 sm:mb-6" style={{ animation: 'mood-pulse 2s ease-in-out infinite' }}>
                         🤖
                       </div>
-                      <h2 className="text-4xl font-bold text-white mb-3" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+                      <h2 className="text-3xl sm:text-4xl font-black text-white mb-3">
                         Detecting Mood...
                       </h2>
-                      <p className="text-gray-300 mb-4">
+                      <p className="text-white/60 text-sm sm:text-base mb-4">
                         Analyzing your facial expression...
                       </p>
                       <div className="flex justify-center gap-1 mt-4">
@@ -1138,19 +1084,19 @@ const AIMode: React.FC = () => {
                 
                 {/* Music Fetching Status */}
                 {isFetchingMusic && (
-                  <div className="mb-4 flex items-center justify-center gap-3 text-blue-400 relative z-10">
-                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <div className="mt-4 sm:mt-6 flex items-center justify-center gap-2 sm:gap-3 text-blue-400 relative z-10">
+                    <svg className="animate-spin h-4 w-4 sm:h-5 sm:w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    <span className="text-sm font-medium">Fetching music from Spotify...</span>
+                    <span className="text-xs sm:text-sm font-medium">Fetching music from Spotify...</span>
                   </div>
                 )}
                 
                 {tracksFetched && !isFetchingMusic && fetchedTracksCount > 0 && (
-                  <div className="mb-4 p-4 bg-green-500/20 border-2 border-green-500/50 rounded-xl relative z-10 backdrop-blur-sm">
-                    <p className="text-green-400 text-sm font-semibold flex items-center justify-center gap-2">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-green-500/20 border border-green-500/50 rounded-lg relative z-10">
+                    <p className="text-green-400 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
                       {fetchedTracksCount} tracks ready from Spotify!
@@ -1158,7 +1104,7 @@ const AIMode: React.FC = () => {
                   </div>
                 )}
                 
-                <p className="text-sm text-gray-400 italic mt-6 relative z-10">
+                <p className="text-xs sm:text-sm text-white/40 mt-4 sm:mt-6 relative z-10">
                   Mood is being detected continuously. Click "Stop Detection" to go to the player with your current mood.
                 </p>
               </div>
@@ -1166,8 +1112,8 @@ const AIMode: React.FC = () => {
 
             {/* Model Status Indicator */}
             {modelLoadError && (
-              <div className="bg-yellow-500/20 border-2 border-yellow-500/50 rounded-2xl p-5 text-center backdrop-blur-sm">
-                <p className="text-yellow-400 text-sm font-semibold">
+              <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-xl p-4 sm:p-5 text-center">
+                <p className="text-yellow-400 text-xs sm:text-sm font-semibold">
                   ⚠️ AI Model Error: {modelLoadError}
                 </p>
                 <p className="text-yellow-300/70 text-xs mt-2">
@@ -1177,9 +1123,9 @@ const AIMode: React.FC = () => {
             )}
             
             {!modelLoadError && faceDetectionModelRef.current && (
-              <div className="bg-green-500/20 border-2 border-green-500/50 rounded-2xl p-4 text-center backdrop-blur-sm">
-                <p className="text-green-400 text-sm font-semibold flex items-center justify-center gap-2">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <div className="bg-green-500/20 border border-green-500/50 rounded-xl p-3 sm:p-4 text-center">
+                <p className="text-green-400 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                   AI Model Loaded Successfully
@@ -1188,39 +1134,30 @@ const AIMode: React.FC = () => {
             )}
 
             {/* Controls */}
-            <div className="flex flex-col gap-4 items-center">
-              <div className="flex gap-4 justify-center">
+            <div className="flex flex-col gap-4 sm:gap-6 items-center">
+              <div className="flex gap-3 sm:gap-4 justify-center">
                 {!isDetecting ? (
                   <button
                     onClick={startWebcam}
                     disabled={isModelLoading}
-                    className="px-10 py-5 text-white rounded-2xl font-semibold transition-all duration-300 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95"
-                    style={{ 
-                      fontFamily: 'system-ui, -apple-system, sans-serif',
-                      background: 'linear-gradient(135deg, #EC4899 0%, #A855F7 100%)',
-                      boxShadow: '0 10px 30px rgba(236, 72, 153, 0.4)',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.boxShadow = '0 15px 40px rgba(236, 72, 153, 0.6)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.boxShadow = '0 10px 30px rgba(236, 72, 153, 0.4)';
-                    }}
+                    className="px-6 sm:px-8 md:px-10 py-3 sm:py-4 md:py-5 text-white rounded-full font-bold text-sm sm:text-base transition-all duration-200 flex items-center gap-2 sm:gap-3 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 bg-[#1DB954] hover:bg-[#1ed760]"
                   >
                     {isModelLoading ? (
                       <>
-                        <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <svg className="animate-spin h-4 w-4 sm:h-5 sm:w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        Loading AI Model...
+                        <span className="hidden sm:inline">Loading AI Model...</span>
+                        <span className="sm:hidden">Loading...</span>
                       </>
                     ) : (
                       <>
-                        <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                         </svg>
-                        Start Camera & Detect Mood
+                        <span className="hidden sm:inline">Start Camera & Detect Mood</span>
+                        <span className="sm:hidden">Start Camera</span>
                       </>
                     )}
                   </button>
@@ -1230,61 +1167,47 @@ const AIMode: React.FC = () => {
                       e.preventDefault();
                       stopDetection(true);
                     }}
-                    className="px-10 py-5 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-semibold transition-all duration-300 flex items-center gap-3 transform hover:scale-105 active:scale-95"
-                    style={{ 
-                      fontFamily: 'system-ui, -apple-system, sans-serif',
-                      boxShadow: '0 10px 30px rgba(239, 68, 68, 0.4)',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.boxShadow = '0 15px 40px rgba(239, 68, 68, 0.6)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.boxShadow = '0 10px 30px rgba(239, 68, 68, 0.4)';
-                    }}
+                    className="px-6 sm:px-8 md:px-10 py-3 sm:py-4 md:py-5 bg-red-600 hover:bg-red-700 text-white rounded-full font-bold text-sm sm:text-base transition-all duration-200 flex items-center gap-2 sm:gap-3 hover:scale-105 active:scale-95"
                   >
-                    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
                     </svg>
-                    Stop Detection (Optional)
+                    <span className="hidden sm:inline">Stop Detection</span>
+                    <span className="sm:hidden">Stop</span>
                   </button>
                 )}
               </div>
-              
             </div>
 
             {/* Instructions */}
-            <div className="rounded-2xl p-6 backdrop-blur-sm"
-              style={{
-                background: 'rgba(20, 20, 30, 0.7)',
-                border: '2px solid rgba(255, 255, 255, 0.1)',
-              }}
+            <div className="rounded-xl sm:rounded-2xl p-4 sm:p-6 bg-white/5 border border-white/10"
             >
-              <h3 className="text-white font-semibold mb-4 text-lg flex items-center gap-2" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <h3 className="text-white font-bold mb-3 sm:mb-4 text-base sm:text-lg flex items-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Instructions:
+                Instructions
               </h3>
-              <ul className="text-gray-300 space-y-3 text-sm">
-                <li className="flex items-start gap-3">
-                  <span className="text-purple-400 mt-1">•</span>
+              <ul className="text-white/60 space-y-2 sm:space-y-3 text-xs sm:text-sm">
+                <li className="flex items-start gap-2 sm:gap-3">
+                  <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
                   <span>Make sure you have good lighting</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-purple-400 mt-1">•</span>
+                <li className="flex items-start gap-2 sm:gap-3">
+                  <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
                   <span>Position your face clearly in front of the camera</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-purple-400 mt-1">•</span>
+                <li className="flex items-start gap-2 sm:gap-3">
+                  <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
                   <span>Allow camera permissions when prompted</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-purple-400 mt-1">•</span>
+                <li className="flex items-start gap-2 sm:gap-3">
+                  <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
                   <span>The AI will analyze your facial expression to detect your mood</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <span className="text-purple-400 mt-1">•</span>
+                <li className="flex items-start gap-2 sm:gap-3">
+                  <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
                   <span>Once detected, you can start music based on your mood</span>
                 </li>
               </ul>

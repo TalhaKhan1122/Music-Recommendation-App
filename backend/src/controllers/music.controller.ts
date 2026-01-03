@@ -7,6 +7,7 @@ import {
   searchSpotifyCatalog as fetchSpotifyCatalog,
   getArtistByIdWithTracks,
   getRecommendationsByArtists,
+  getRelatedArtists,
 } from '../services/spotify.service';
 import { getTracksByMood as getYouTubeTracks, getRecommendationsByMood as getYouTubeRecommendations } from '../services/youtube.service';
 import { getTracksByMood as getSoundCloudTracks, getRecommendationsByMood as getSoundCloudRecommendations } from '../services/soundcloud.service';
@@ -1187,6 +1188,47 @@ export const getRecommendationsByArtistsController = async (req: AuthRequest, re
       success: false,
       message: error.message || 'Failed to get recommendations',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * @route   GET /api/music/artists/:artistId/related
+ * @desc    Get related artists for a given artist ID
+ * @access  Private
+ */
+export const getRelatedArtistsController = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user?.id) {
+      res.status(401).json({
+        success: false,
+        message: 'Unauthorized. Please login and try again.',
+      });
+      return;
+    }
+
+    const { artistId } = req.params;
+
+    if (!artistId) {
+      res.status(400).json({
+        success: false,
+        message: 'Artist ID is required.',
+      });
+      return;
+    }
+
+    const relatedArtists = await getRelatedArtists(artistId);
+
+    res.status(200).json({
+      success: true,
+      data: relatedArtists,
+    });
+  } catch (error: any) {
+    console.error('Error fetching related artists:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch related artists',
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
   }
 };

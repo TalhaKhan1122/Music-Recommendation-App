@@ -39,7 +39,7 @@ const Hero: React.FC = () => {
             </p>
             
             <button className="bg-white hover:bg-gray-100 text-gray-900 px-6 sm:px-8 py-3 sm:py-4 rounded-lg text-base sm:text-lg font-semibold transition-colors inline-flex items-center gap-2 shadow-lg w-full sm:w-auto justify-center" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-              <span className="text-sm sm:text-base">TRY BRAIN.FM FOR FREE</span>
+              <span className="text-sm sm:text-base">TRY BEATIFY FOR FREE</span>
               <span className="text-lg sm:text-xl">→</span>
             </button>
           </div>

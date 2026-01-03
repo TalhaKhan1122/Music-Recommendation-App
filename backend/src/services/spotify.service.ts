@@ -1243,4 +1243,62 @@ export const getRecommendationsByArtists = async (
   }
 };
 
+/**
+ * Get related artists for a given artist ID
+ */
+export const getRelatedArtists = async (artistId: string): Promise<ArtistMetadata[]> => {
+  try {
+    const token = await getAccessToken();
+    
+    const response = await axios.get(`https://api.spotify.com/v1/artists/${artistId}/related-artists`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const relatedArtists: any[] = response.data?.artists || [];
+    
+    if (relatedArtists.length === 0) {
+      console.warn('⚠️ No related artists returned from Spotify API');
+      return [];
+    }
+
+    console.log(`✅ Got ${relatedArtists.length} related artists`);
+    
+    // Format artists with error handling
+    const formattedArtists: ArtistMetadata[] = [];
+    for (const artist of relatedArtists) {
+      try {
+        // Determine category from genres
+        let category: ArtistCategory = 'english';
+        const genres = Array.isArray(artist.genres) ? artist.genres.map((g: string) => g.toLowerCase()) : [];
+        if (genres.some((g: string) => g.includes('punjabi') || g.includes('bhangra'))) {
+          category = 'punjabi';
+        } else if (genres.some((g: string) => g.includes('pakistani') || g.includes('urdu'))) {
+          category = 'pakistani';
+        }
+        
+        formattedArtists.push(formatSpotifyArtist(artist, category, []));
+      } catch (artistError: any) {
+        console.warn(`⚠️ Skipping invalid artist:`, artistError.message, artist);
+        // Continue with other artists
+      }
+    }
+    
+    return formattedArtists;
+  } catch (error: any) {
+    console.error('❌ Error getting related artists:', error.response?.data || error.message);
+    
+    if (error.response?.status === 400) {
+      throw new Error(`Invalid request to Spotify API: ${error.response?.data?.error?.message || 'Bad request'}`);
+    } else if (error.response?.status === 401) {
+      throw new Error('Spotify authentication failed. Please check API credentials.');
+    } else if (error.response?.status === 429) {
+      throw new Error('Spotify API rate limit exceeded. Please try again later.');
+    }
+    
+    throw new Error(`Failed to get related artists: ${error.message || 'Unknown error'}`);
+  }
+};
+
 

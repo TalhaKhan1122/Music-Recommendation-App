@@ -18,6 +18,7 @@ import {
   unfollowArtistController,
   getArtistByIdController,
   getRecommendationsByArtistsController,
+  getRelatedArtistsController,
 } from '../controllers/music.controller';
 import { authenticate } from '../middleware';
 
@@ -71,6 +72,13 @@ router.delete('/artists/followed/:artistId', authenticate, unfollowArtistControl
  * @access  Private
  */
 router.get('/artists/:artistId', authenticate, getArtistByIdController);
+
+/**
+ * @route   GET /api/music/artists/:artistId/related
+ * @desc    Get related artists for a given artist ID
+ * @access  Private
+ */
+router.get('/artists/:artistId/related', authenticate, getRelatedArtistsController);
 
 /**
  * @route   GET /api/music/spotify/search
