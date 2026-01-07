@@ -49,8 +49,16 @@ const AuthCallback: React.FC = () => {
         try {
           console.log('✅ Received token from Google OAuth callback');
           
-          // Store token in localStorage
-          localStorage.setItem('token', token);
+          // Decode token if it's URL encoded
+          const decodedToken = decodeURIComponent(token);
+          
+          // Store token in localStorage FIRST
+          localStorage.setItem('token', decodedToken);
+          console.log('💾 Token stored in localStorage');
+          
+          // Update AuthContext state IMMEDIATELY so it's available
+          setToken(decodedToken);
+          console.log('🔐 Token set in AuthContext');
           
           // Fetch user info using the token
           console.log('🔍 Fetching user information...');
@@ -61,42 +69,69 @@ const AuthCallback: React.FC = () => {
             
             // Store user in localStorage
             localStorage.setItem('user', JSON.stringify(response.data.user));
+            console.log('💾 User stored in localStorage');
             
             // Update AuthContext state
-            setToken(token);
             setUser(response.data.user);
+            console.log('👤 User set in AuthContext');
             
-            toast.success('Google authentication successful! Welcome! 🎉', {
+            const message = searchParams.get('message');
+            const successMessage = message 
+              ? decodeURIComponent(message)
+              : 'Google authentication successful! Welcome! 🎉';
+            
+            toast.success(successMessage, {
               position: 'top-right',
               autoClose: 3000,
             });
             
-            // Navigate to dashboard
-            navigate('/dashboard');
+            // Small delay to ensure state is updated before navigation
+            setTimeout(() => {
+              navigate('/dashboard', { replace: true });
+            }, 100);
           } else {
             throw new Error('Failed to fetch user information');
           }
         } catch (error: any) {
           console.error('❌ Error handling Google callback:', error);
           console.error('Error details:', error.message);
+          console.error('Error stack:', error.stack);
+          
+          // Clear any partial data
           localStorage.removeItem('token');
           localStorage.removeItem('user');
-          toast.error(error.message || 'Failed to complete authentication. Please try again.', {
+          setToken(null);
+          setUser(null);
+          
+          let errorMessage = 'Failed to complete authentication. Please try again.';
+          if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+            errorMessage = 'Authentication token is invalid. Please try logging in again.';
+          } else if (error.message?.includes('Network') || error.message?.includes('fetch')) {
+            errorMessage = 'Network error. Please check your connection and try again.';
+          } else if (error.message) {
+            errorMessage = error.message;
+          }
+          
+          toast.error(errorMessage, {
             position: 'top-right',
-            autoClose: 4000,
+            autoClose: 5000,
           });
-          navigate('/');
+          navigate('/', { replace: true });
         }
       } else if (!token) {
         console.warn('⚠️ No token received in callback');
-        toast.error('Authentication failed: No token received', {
+        toast.error('Authentication failed: No token received. Please try again.', {
           position: 'top-right',
           autoClose: 4000,
         });
-        navigate('/');
+        navigate('/', { replace: true });
       } else {
         console.warn('⚠️ Callback received but success is not true');
-        navigate('/');
+        toast.error('Authentication failed. Please try again.', {
+          position: 'top-right',
+          autoClose: 4000,
+        });
+        navigate('/', { replace: true });
       }
     };
 

@@ -3,8 +3,8 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import type { Track } from '../api/music.api';
 import { getArtistById, getRecommendationsByArtists } from '../api/music.api';
-import { SpotifyIcon } from '../components/icons';
 import { useSpotifyPlayer } from '../context';
+import BeatifyLogo from '../assets/beatify-logo.png';
 
 const StationDetail: React.FC = () => {
   const navigate = useNavigate();
@@ -211,7 +211,11 @@ const StationDetail: React.FC = () => {
                   <path d="M19 12H5M12 19l-7-7 7-7"/>
                 </svg>
               </button>
-              <SpotifyIcon size={14} className="text-white drop-shadow-md" />
+              <img 
+                src={BeatifyLogo} 
+                alt="Beatify" 
+                className="w-5 h-5 object-contain drop-shadow-md"
+              />
             </div>
             
             <span className="px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wide bg-white/20 backdrop-blur-sm rounded-full" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
@@ -219,84 +223,136 @@ const StationDetail: React.FC = () => {
             </span>
           </div>
 
-          {/* Centered Content - Artist Images and Text Side by Side */}
-          <div className="flex items-center justify-center gap-8 md:gap-12 z-10">
-            {/* Left Side - Overlapping Artist Images */}
-            {featuredArtists.length > 0 && (
-              <div className="relative flex items-center justify-center flex-shrink-0">
-                <div className="relative flex items-center justify-center" style={{ width: '340px', height: '160px' }}>
-                  {featuredArtists.slice(0, 3).map((artist, index) => {
-                    // Center image is larger, side images are smaller
-                    const size = index === 1 ? 150 : 120;
-                    const offset = index === 0 ? -70 : index === 1 ? 0 : 70;
-                    
-                    return (
-                      <div
-                        key={artist.id}
-                        className="absolute rounded-full overflow-hidden bg-gray-300 flex items-center justify-center cursor-pointer hover:scale-115 transition-all duration-300 group"
-                        onClick={() => handleArtistClick(artist.id, artist.name, artist.image)}
-                        style={{
-                          width: `${size}px`,
-                          height: `${size}px`,
-                          left: `calc(50% + ${offset}px)`,
-                          transform: 'translateX(-50%)',
-                          zIndex: index === 1 ? 10 : 10 - Math.abs(index - 1),
-                          border: '3px solid rgba(255, 255, 255, 0.4)',
-                          boxShadow: '0 6px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
-                        }}
-                      >
-                        {artist.image ? (
-                          <img
-                            src={artist.image}
-                            alt={artist.name}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                          />
-                        ) : (
-                          <span className="text-gray-600 text-3xl font-bold">
-                            {artist.name.charAt(0).toUpperCase()}
+          {/* Centered Content - Artist Images and Names */}
+          <div className="flex flex-col items-center justify-center gap-6 md:gap-8 z-10 w-full max-w-4xl mx-auto">
+            {/* Artist Images Section */}
+            {featuredArtists.length > 0 && (() => {
+              const artistCount = featuredArtists.length;
+              
+              // Calculate layout based on number of artists
+              const getArtistLayout = (index: number, total: number) => {
+                if (total === 1) {
+                  return { size: 180, offset: 0 };
+                } else if (total === 2) {
+                  const offset = index === 0 ? -50 : 50;
+                  return { size: 140, offset };
+                } else if (total === 3) {
+                  const size = index === 1 ? 150 : 120;
+                  const offset = index === 0 ? -70 : index === 1 ? 0 : 70;
+                  return { size, offset };
+                } else if (total === 4) {
+                  const size = index < 2 ? 110 : 100;
+                  const offset = index === 0 ? -80 : index === 1 ? -25 : index === 2 ? 25 : 80;
+                  return { size, offset };
+                } else { // total === 5
+                  const size = index === 2 ? 130 : 100; // Center is larger
+                  const offset = index === 0 ? -90 : index === 1 ? -45 : index === 2 ? 0 : index === 3 ? 45 : 90;
+                  return { size, offset };
+                }
+              };
+
+              // Calculate container width based on number of artists
+              const containerWidth = artistCount === 1 ? 200 : 
+                                    artistCount === 2 ? 300 : 
+                                    artistCount === 3 ? 340 : 
+                                    artistCount === 4 ? 380 : 420;
+
+              return (
+                <div className="relative flex flex-col items-center justify-center w-full">
+                  {/* Artist Images */}
+                  <div className="relative flex items-center justify-center mb-6" style={{ width: `${containerWidth}px`, height: '180px' }}>
+                    {featuredArtists.map((artist, index) => {
+                      const { size, offset } = getArtistLayout(index, artistCount);
+                      const zIndex = artistCount === 1 ? 10 : 
+                                    artistCount === 2 ? (index === 0 ? 9 : 10) :
+                                    artistCount === 3 ? (index === 1 ? 10 : 10 - Math.abs(index - 1)) :
+                                    artistCount === 4 ? (10 - Math.abs(index - 1.5)) :
+                                    (index === 2 ? 10 : 10 - Math.abs(index - 2));
+                      
+                      return (
+                        <div
+                          key={artist.id}
+                          className="absolute rounded-full overflow-hidden bg-gray-300 flex items-center justify-center cursor-pointer hover:scale-115 transition-all duration-300 group"
+                          onClick={() => handleArtistClick(artist.id, artist.name, artist.image)}
+                          style={{
+                            width: `${size}px`,
+                            height: `${size}px`,
+                            left: `calc(50% + ${offset}px)`,
+                            transform: 'translateX(-50%)',
+                            zIndex: zIndex,
+                            border: '3px solid rgba(255, 255, 255, 0.4)',
+                            boxShadow: '0 6px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
+                          }}
+                        >
+                          {artist.image ? (
+                            <img
+                              src={artist.image}
+                              alt={artist.name}
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                            />
+                          ) : (
+                            <span className="text-gray-600 text-3xl font-bold">
+                              {artist.name.charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                          {/* Hover overlay */}
+                          <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-300 rounded-full"></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Artist Names */}
+                  <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3 px-4 w-full max-w-4xl">
+                    {featuredArtists.map((artist, index) => (
+                      <React.Fragment key={artist.id}>
+                        <button
+                          onClick={() => handleArtistClick(artist.id, artist.name, artist.image)}
+                          className="text-sm md:text-base lg:text-lg text-white/95 hover:text-white font-semibold transition-colors px-3 py-1.5 rounded-lg hover:bg-white/10 min-w-0 flex-shrink"
+                          style={{ 
+                            textShadow: '0 2px 6px rgba(0, 0, 0, 0.5)',
+                            maxWidth: artistCount === 1 ? '350px' : 
+                                     artistCount === 2 ? '220px' : 
+                                     artistCount === 3 ? '200px' : 
+                                     artistCount === 4 ? '170px' : '150px',
+                          }}
+                          title={artist.name}
+                        >
+                          <span 
+                            className="block overflow-hidden text-ellipsis whitespace-nowrap text-center"
+                          >
+                            {artist.name}
+                          </span>
+                        </button>
+                        {index < featuredArtists.length - 1 && (
+                          <span 
+                            className="text-white/70 text-lg md:text-xl font-bold flex-shrink-0" 
+                            style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.5)' }}
+                          >
+                            &
                           </span>
                         )}
-                        {/* Hover overlay */}
-                        <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-300 rounded-full"></div>
-                      </div>
-                    );
-                  })}
-                  {featuredArtists.length > 3 && (
-                    <div
-                      className="absolute rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center text-white text-sm font-bold cursor-pointer hover:scale-115 transition-all duration-300"
-                      style={{
-                        width: '90px',
-                        height: '90px',
-                        left: 'calc(50% + 105px)',
-                        transform: 'translateX(-50%)',
-                        zIndex: 1,
-                        border: '3px solid rgba(255, 255, 255, 0.4)',
-                        boxShadow: '0 6px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
-                      }}
-                    >
-                      +{featuredArtists.length - 3}
-                    </div>
-                  )}
+                      </React.Fragment>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
-            {/* Right Side - Station Name and Info */}
-            <div className="flex-shrink-0 text-left">
+            {/* Station Name and Info */}
+            <div className="flex-shrink-0 text-center px-4">
               <h1 
-                className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3 line-clamp-2 leading-tight" 
+                className="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold text-white mb-3 line-clamp-2 leading-tight" 
                 style={{ 
                   fontFamily: 'system-ui, -apple-system, sans-serif',
                   textShadow: '0 4px 12px rgba(0, 0, 0, 0.6)',
                 }}
+                title={stationName || 'Station'}
               >
                 {stationName || 'Station'}
               </h1>
-              <p className="text-sm md:text-base text-white/95 font-medium mb-2" style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.5)' }}>
-                {featuredArtists.map(a => a.name).join(' & ')}
-              </p>
               <p className="text-xs md:text-sm text-white/80" style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.5)' }}>
-                {featuredTracks.length} tracks
+                {featuredTracks.length} {featuredTracks.length === 1 ? 'track' : 'tracks'}
               </p>
             </div>
           </div>
@@ -329,7 +385,11 @@ const StationDetail: React.FC = () => {
                       />
                     ) : (
                       <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center flex-shrink-0">
-                        <SpotifyIcon size={20} className="text-white/60" />
+                        <img 
+                          src={BeatifyLogo} 
+                          alt="Beatify" 
+                          className="w-8 h-8 object-contain opacity-70"
+                        />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -337,9 +397,6 @@ const StationDetail: React.FC = () => {
                         {track.name}
                       </p>
                       <p className="text-xs text-white/60 truncate mt-0.5">{track.artists}</p>
-                    </div>
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                      <SpotifyIcon size={16} className="text-white/60" />
                     </div>
                   </div>
                 </button>

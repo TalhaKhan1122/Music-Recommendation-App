@@ -130,8 +130,12 @@ export const getCurrentUser = async (): Promise<{ success: boolean; data: { user
   const token = localStorage.getItem('token');
 
   if (!token) {
+    console.error('❌ getCurrentUser: No token found in localStorage');
     throw new Error('No token found');
   }
+
+  console.log('🔍 getCurrentUser: Token found, length:', token.length);
+  console.log('🔍 getCurrentUser: Making request to:', `${API_BASE_URL}/auth/me`);
 
   try {
     const response = await fetch(`${API_BASE_URL}/auth/me`, {
@@ -142,9 +146,12 @@ export const getCurrentUser = async (): Promise<{ success: boolean; data: { user
       },
     });
 
+    console.log('📥 getCurrentUser: Response status:', response.status);
+
     const result = await response.json();
     
     if (!response.ok) {
+      console.error('❌ getCurrentUser: Request failed:', result);
       // Don't remove localStorage here - let AuthContext handle it
       // This allows AuthContext to distinguish between network errors and auth errors
       const error = new Error(result.message || 'Failed to get user');
@@ -152,8 +159,10 @@ export const getCurrentUser = async (): Promise<{ success: boolean; data: { user
       throw error;
     }
 
+    console.log('✅ getCurrentUser: Success, user data received');
     return result;
   } catch (error: any) {
+    console.error('❌ getCurrentUser: Error occurred:', error);
     // Handle network errors
     if (error instanceof TypeError && error.message.includes('fetch')) {
       throw new Error('Network error: Cannot connect to server');

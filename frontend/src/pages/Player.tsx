@@ -13,9 +13,9 @@ import {
   PreviousIcon,
   YouTubeIcon,
   SoundCloudIcon,
-  SpotifyIcon,
   HeartIcon,
 } from '../components/icons';
+import BeatifyLogo from '../assets/beatify-logo.png';
 
 const Player: React.FC = () => {
   const navigate = useNavigate();
@@ -743,7 +743,11 @@ const Player: React.FC = () => {
                             ) : track.source === 'soundcloud' || track.externalUrl?.includes('soundcloud.com') ? (
                               <SoundCloudIcon size={20} className="w-5 h-5 text-orange-400" />
                             ) : (
-                              <SpotifyIcon size={20} className="w-5 h-5 text-green-400" />
+                              <img 
+                                src={BeatifyLogo} 
+                                alt="Beatify" 
+                                className="w-6 h-6 object-contain"
+                              />
                             )}
                           </a>
                         </div>

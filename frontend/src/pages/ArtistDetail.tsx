@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import type { ArtistMetadata, Track } from '../api/music.api';
 import { getArtistById, getTopArtistsShowcase } from '../api/music.api';
-import { SpotifyIcon, PlayIcon, PauseIcon } from '../components/icons';
+import { PlayIcon, PauseIcon } from '../components/icons';
 import { useSpotifyPlayer, useFollowedArtists } from '../context';
 
 interface ArtistDetailLocationState {

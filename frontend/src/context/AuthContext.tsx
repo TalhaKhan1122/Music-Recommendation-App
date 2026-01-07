@@ -80,13 +80,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       verifyToken().catch(() => {
         // If verification fails, we'll handle it in verifyToken
       });
-    } else {
-      console.log('❌ No token or user found, user not authenticated');
+    } else if (!token && !user) {
+      // Only log this on initial mount, not on every render
+      // This is normal when user hasn't logged in yet
+      if (isLoading === false) {
+        // Already set to false, this is just initial state
+        return;
+      }
       // No stored auth, so we're done loading
       setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token, user]);
 
   const verifyToken = async () => {
     try {

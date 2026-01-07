@@ -49,6 +49,7 @@ const HomePage: React.FC = () => {
     
     if (error) {
       let userFriendlyMessage = 'An error occurred. Please try again.';
+      let shouldOpenModal = false;
       
       if (error === 'oauth_cancelled') {
         userFriendlyMessage = 'Google sign-in was cancelled.';
@@ -56,22 +57,32 @@ const HomePage: React.FC = () => {
         userFriendlyMessage = errorMessage 
           ? `Authentication failed: ${decodeURIComponent(errorMessage)}`
           : 'Google authentication failed. Please try again.';
+        shouldOpenModal = true;
       } else if (error === 'no_email') {
         userFriendlyMessage = 'No email provided by Google. Please try again.';
+        shouldOpenModal = true;
       } else if (error === 'invalid_grant') {
         userFriendlyMessage = 'Authorization code expired. Please try again.';
+        shouldOpenModal = true;
       } else if (error === 'redirect_uri_mismatch') {
         userFriendlyMessage = 'Configuration error. Please contact support.';
       } else if (error === 'oauth_error') {
         userFriendlyMessage = errorMessage
           ? `Error: ${decodeURIComponent(errorMessage)}`
           : 'An error occurred during authentication.';
+        shouldOpenModal = true;
       }
       
       toast.error(userFriendlyMessage, {
         position: 'top-right',
         autoClose: 5000,
       });
+      
+      // Open modal if it's a retryable error
+      if (shouldOpenModal) {
+        setActiveTab('signup');
+        setIsModalOpen(true);
+      }
       
       // Remove error params from URL
       const newSearchParams = new URLSearchParams(searchParams);

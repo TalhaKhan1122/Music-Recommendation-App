@@ -9,8 +9,9 @@ import type {
   Track,
 } from '../api/music.api';
 import { getTopArtistsShowcase, searchSpotifyCatalog, getTracksByMood, getRecommendationsByArtists, getArtistById } from '../api/music.api';
-import { SpotifyIcon } from '../components/icons';
 import { useSpotifyPlayer, useFollowedArtists } from '../context';
+import CreateStationModal from '../components/CreateStationModal';
+import BeatifyLogo from '../assets/beatify-logo.png';
 
 const INITIAL_LIMIT = 6;
 const LIMIT_STEP = 6;
@@ -151,7 +152,14 @@ const Artists: React.FC = () => {
     artists: Array<{ id: string; name: string; image?: string }>;
     color: string;
   }>>([]);
+  const [customStations, setCustomStations] = useState<Array<{
+    id: string;
+    name: string;
+    artists: Array<{ id: string; name: string; image?: string }>;
+    color: string;
+  }>>([]);
   const [isLoadingStations, setIsLoadingStations] = useState(false);
+  const [showCreateStationModal, setShowCreateStationModal] = useState(false);
   // Featured artists/tracks moved to StationDetail page
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -399,7 +407,8 @@ const Artists: React.FC = () => {
       const shuffled = [...allTopArtists].sort(() => Math.random() - 0.5);
 
       // Create stations from global artists (mix different categories)
-      const maxGlobalStations = 5; // Create 5 stations from global artists
+      // Only create 4 default stations
+      const maxGlobalStations = 4 - stations.length; // Ensure total is 4
       for (let i = 0; i < Math.min(maxGlobalStations, Math.floor(shuffled.length / 2)); i++) {
         const idx1 = i * 2;
         const idx2 = idx1 + 1;
@@ -442,8 +451,8 @@ const Artists: React.FC = () => {
       // Continue with just followed artists if this fails
     }
 
-    // Shuffle all stations to mix followed and global
-    const finalStations = [...stations].sort(() => Math.random() - 0.5);
+    // Only show first 4 stations as default
+    const finalStations = stations.slice(0, 4);
     setRecommendedStations(finalStations);
     
     // Check scroll buttons after stations are set
@@ -453,6 +462,54 @@ const Artists: React.FC = () => {
     
     setIsLoadingStations(false);
   }, [followedArtists, checkScrollButtons]);
+
+  // Load custom stations from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('customStations');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setCustomStations(Array.isArray(parsed) ? parsed : []);
+      }
+    } catch (error) {
+      console.error('Error loading custom stations:', error);
+    }
+  }, []);
+
+  // Handle creating custom station
+  const handleCreateCustomStation = useCallback((artists: Array<{ id: string; name: string; image?: string }>) => {
+    if (artists.length < 2 || artists.length > 5) {
+      toast.error('Please select 2-5 artists');
+      return;
+    }
+
+    const stationName = artists.map(a => a.name).join(' & ');
+    const stationId = `custom-${Date.now()}-${artists.map(a => a.id).join('-')}`;
+    
+    const colors = [
+      '#FF6B35', '#FF4757', '#FF6348', '#FF8C42',
+      '#E74C3C', '#FF6B9D', '#FF8E53', '#FF5252',
+    ];
+    
+    const newStation = {
+      id: stationId,
+      name: stationName,
+      artists: artists,
+      color: colors[Math.floor(Math.random() * colors.length)],
+    };
+
+    const updated = [...customStations, newStation];
+    setCustomStations(updated);
+    
+    // Save to localStorage
+    try {
+      localStorage.setItem('customStations', JSON.stringify(updated));
+    } catch (error) {
+      console.error('Error saving custom station:', error);
+    }
+
+    toast.success(`Created station: ${stationName}`);
+  }, [customStations]);
 
   // Scroll functions
   const scrollStations = useCallback((direction: 'left' | 'right') => {
@@ -884,7 +941,11 @@ const Artists: React.FC = () => {
                     }}
                     className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 hover:border-white/30 transition-all flex-shrink-0 group/play"
                   >
-                    <SpotifyIcon size={14} className="text-white/70 group-hover/play:text-white" />
+                    <img 
+                      src={BeatifyLogo} 
+                      alt="Beatify" 
+                      className="w-5 h-5 sm:w-6 sm:h-6 object-contain"
+                    />
                     <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-white/70 group-hover/play:text-white hidden sm:inline">
                       Play in Beatify
                     </span>
@@ -1179,9 +1240,13 @@ const Artists: React.FC = () => {
                           backgroundColor: station.color,
                         }}
                       >
-                        {/* Spotify Logo - Top Left */}
+                        {/* Beatify Logo - Top Left */}
                         <div className="absolute top-2.5 left-2.5 z-10">
-                          <SpotifyIcon size={14} className="text-white drop-shadow-md" />
+                          <img 
+                            src={BeatifyLogo} 
+                            alt="Beatify" 
+                            className="w-5 h-5 object-contain drop-shadow-md"
+                          />
                         </div>
                         
                         {/* RADIO Badge - Top Right */}
@@ -1261,10 +1326,130 @@ const Artists: React.FC = () => {
                       </button>
                       ))
                     )}
+                    
+                    {/* Create Station Button */}
+                    <button
+                      onClick={() => setShowCreateStationModal(true)}
+                      className="group relative overflow-hidden rounded-lg aspect-[4/5] min-h-[200px] min-w-[160px] flex-shrink-0 flex flex-col items-center justify-center border-2 border-dashed border-white/30 hover:border-white/50 bg-white/5 hover:bg-white/10 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/50"
+                    >
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
+                          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/70">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                          </svg>
+                        </div>
+                        <p className="text-sm font-semibold text-white/80 group-hover:text-white transition-colors text-center px-4">
+                          Create Station
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* Custom Stations */}
+                    {customStations.map((station) => (
+                      <button
+                        key={station.id}
+                        onClick={() => handleStationClick(station)}
+                        className="group relative overflow-hidden rounded-lg aspect-[4/5] min-h-[200px] min-w-[160px] flex-shrink-0 text-left transition-all hover:scale-[1.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/50"
+                        style={{
+                          backgroundColor: station.color,
+                        }}
+                      >
+                        {/* Beatify Logo - Top Left */}
+                        <div className="absolute top-2.5 left-2.5 z-10">
+                          <img 
+                            src={BeatifyLogo} 
+                            alt="Beatify" 
+                            className="w-5 h-5 object-contain drop-shadow-md"
+                          />
+                        </div>
+                        
+                        {/* RADIO Badge - Top Right */}
+                        <div className="absolute top-2.5 right-2.5 z-10">
+                          <span className="px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wide" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+                            RADIO
+                          </span>
+                        </div>
+
+                        {/* Overlapping Artist Images - Center */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
+                          <div className="relative flex items-center justify-center" style={{ width: '140px', height: '65px' }}>
+                            {station.artists.slice(0, 3).map((artist, index) => {
+                              const size = index === 1 ? 60 : 50;
+                              const offset = index === 0 ? -28 : index === 1 ? 0 : 28;
+                              
+                              return (
+                                <div
+                                  key={artist.id}
+                                  className="absolute rounded-full overflow-hidden bg-gray-300 flex items-center justify-center"
+                                  style={{
+                                    width: `${size}px`,
+                                    height: `${size}px`,
+                                    left: `calc(50% + ${offset}px)`,
+                                    transform: 'translateX(-50%)',
+                                    zIndex: index === 1 ? 10 : 10 - Math.abs(index - 1),
+                                    border: '2px solid rgba(255, 255, 255, 0.25)',
+                                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                                  }}
+                                >
+                                  {artist.image ? (
+                                    <img
+                                      src={artist.image}
+                                      alt={artist.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <span className="text-gray-600 text-sm font-bold">
+                                      {artist.name.charAt(0).toUpperCase()}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {station.artists.length > 3 && (
+                              <div
+                                className="absolute rounded-full bg-white/15 backdrop-blur-sm flex items-center justify-center text-white text-[10px] font-bold"
+                                style={{
+                                  width: '40px',
+                                  height: '40px',
+                                  left: 'calc(50% + 45px)',
+                                  transform: 'translateX(-50%)',
+                                  zIndex: 1,
+                                  border: '2px solid rgba(255, 255, 255, 0.25)',
+                                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                                }}
+                              >
+                                +{station.artists.length - 3}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Station Name - Bottom Left */}
+                        <div className="absolute bottom-3 left-3 right-3 z-10">
+                          <h3 
+                            className="text-sm font-bold text-white line-clamp-2 leading-tight" 
+                            style={{ 
+                              fontFamily: 'system-ui, -apple-system, sans-serif',
+                              textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+                            }}
+                          >
+                            {station.name}
+                          </h3>
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 </div>
               </section>
             )}
+
+            {/* Create Station Modal */}
+            <CreateStationModal
+              isOpen={showCreateStationModal}
+              onClose={() => setShowCreateStationModal(false)}
+              onCreateStation={handleCreateCustomStation}
+            />
 
             {/* Popular Songs Sections for Each Category */}
             {!hasSearchResults && (
@@ -1332,7 +1517,11 @@ const Artists: React.FC = () => {
                               />
                             ) : (
                               <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center flex-shrink-0">
-                                <SpotifyIcon size={20} className="text-white/60" />
+                                <img 
+                                  src={BeatifyLogo} 
+                                  alt="Beatify" 
+                                  className="w-8 h-8 object-contain opacity-70"
+                                />
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
@@ -1340,9 +1529,6 @@ const Artists: React.FC = () => {
                                 {track.name}
                               </p>
                               <p className="text-xs text-white/60 truncate mt-0.5">{track.artists}</p>
-                            </div>
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                              <SpotifyIcon size={16} className="text-white/60" />
                             </div>
                           </div>
                         </button>
@@ -1414,7 +1600,11 @@ const Artists: React.FC = () => {
                               />
                             ) : (
                               <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center flex-shrink-0">
-                                <SpotifyIcon size={20} className="text-white/60" />
+                                <img 
+                                  src={BeatifyLogo} 
+                                  alt="Beatify" 
+                                  className="w-8 h-8 object-contain opacity-70"
+                                />
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
@@ -1422,9 +1612,6 @@ const Artists: React.FC = () => {
                                 {track.name}
                               </p>
                               <p className="text-xs text-white/60 truncate mt-0.5">{track.artists}</p>
-                            </div>
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                              <SpotifyIcon size={16} className="text-white/60" />
                             </div>
                           </div>
                         </button>
@@ -1496,7 +1683,11 @@ const Artists: React.FC = () => {
                               />
                             ) : (
                               <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center flex-shrink-0">
-                                <SpotifyIcon size={20} className="text-white/60" />
+                                <img 
+                                  src={BeatifyLogo} 
+                                  alt="Beatify" 
+                                  className="w-8 h-8 object-contain opacity-70"
+                                />
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
@@ -1504,9 +1695,6 @@ const Artists: React.FC = () => {
                                 {track.name}
                               </p>
                               <p className="text-xs text-white/60 truncate mt-0.5">{track.artists}</p>
-                            </div>
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                              <SpotifyIcon size={16} className="text-white/60" />
                             </div>
                           </div>
                         </button>
@@ -1578,7 +1766,6 @@ const Artists: React.FC = () => {
                               />
                             ) : (
                               <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center flex-shrink-0">
-                                <SpotifyIcon size={16} className="text-white/60" />
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
@@ -1586,9 +1773,6 @@ const Artists: React.FC = () => {
                                 {track.name}
                               </p>
                               <p className="text-[10px] text-white/60 truncate mt-0.5">{track.artists}</p>
-                            </div>
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                              <SpotifyIcon size={14} className="text-white/60" />
                             </div>
                           </div>
                         </button>

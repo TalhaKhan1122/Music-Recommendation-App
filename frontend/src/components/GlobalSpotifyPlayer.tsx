@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { SpotifyEmbed } from '.';
 import { useAuth, useSpotifyPlayer } from '../context';
-import { HeartIcon, SpotifyIcon, YouTubeIcon, SoundCloudIcon } from './icons';
+import { HeartIcon, YouTubeIcon, SoundCloudIcon } from './icons';
+import BeatifyLogo from '../assets/beatify-logo.png';
 import { 
   getFavoriteTracks, 
   addTrackToFavorites, 
@@ -309,7 +310,11 @@ const GlobalSpotifyPlayer: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          <SpotifyIcon size={18} className="w-[18px] h-[18px]" />
+                          <img 
+                            src={BeatifyLogo} 
+                            alt="Beatify" 
+                            className="w-6 h-6 object-contain"
+                          />
                           <span>Open in Spotify</span>
                         </>
                       )}

@@ -55,16 +55,16 @@ if (!envLoaded) {
 }
 
 // Log environment variables status (for debugging)
-console.log('🔍 Environment Variables Status:');
-console.log('   GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? '✅ Set' : '❌ Missing');
-console.log('   GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? '✅ Set' : '❌ Missing');
-console.log('   MONGODB_URI:', process.env.MONGODB_URI ? '✅ Set' : '❌ Missing');
-console.log('   JWT_SECRET:', process.env.JWT_SECRET ? '✅ Set' : '❌ Missing');
-console.log('   SPOTIFY_CLIENT_ID:', process.env.SPOTIFY_CLIENT_ID ? '✅ Set' : '❌ Missing');
-console.log('   SPOTIFY_CLIENT_SECRET:', process.env.SPOTIFY_CLIENT_SECRET ? '✅ Set' : '❌ Missing');
-console.log('   FRONTEND_URL:', process.env.FRONTEND_URL || 'http://localhost:5173');
-console.log('   BACKEND_URL:', process.env.BACKEND_URL || 'http://localhost:5000');
-console.log('');
+// console.log('🔍 Environment Variables Status:');
+// console.log('   GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? '✅ Set' : '❌ Missing');
+// console.log('   GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? '✅ Set' : '❌ Missing');
+// console.log('   MONGODB_URI:', process.env.MONGODB_URI ? '✅ Set' : '❌ Missing');
+// console.log('   JWT_SECRET:', process.env.JWT_SECRET ? '✅ Set' : '❌ Missing');
+// console.log('   SPOTIFY_CLIENT_ID:', process.env.SPOTIFY_CLIENT_ID ? '✅ Set' : '❌ Missing');
+// console.log('   SPOTIFY_CLIENT_SECRET:', process.env.SPOTIFY_CLIENT_SECRET ? '✅ Set' : '❌ Missing');
+// console.log('   FRONTEND_URL:', process.env.FRONTEND_URL || 'http://localhost:5173');
+// console.log('   BACKEND_URL:', process.env.BACKEND_URL || 'http://localhost:5000');
+// console.log('');
 
 import { connectDB } from './config/db.config';
 import apiRoutes from './routes';
