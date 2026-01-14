@@ -128,6 +128,7 @@ const Artists: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [hasMoreMap, setHasMoreMap] = useState<Record<string, boolean>>({});
   const [loadingCategories, setLoadingCategories] = useState<Set<string>>(new Set());
+  const [visibleRowsMap, setVisibleRowsMap] = useState<Record<string, number>>({}); // Track visible rows per category
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchResults, setSearchResults] = useState<SpotifyCatalogSearchResult>(() => emptySearchResult());
@@ -192,7 +193,23 @@ const Artists: React.FC = () => {
           nextHasMore[section.category] = Boolean(section.hasMore) || hasUnrevealed;
         });
 
-        setSections(payload.sections);
+        // Merge new artists with existing ones to preserve previously loaded artists
+        setSections((prevSections) => {
+          return payload.sections.map((newSection) => {
+            const existingSection = prevSections.find(s => s.category === newSection.category);
+            if (existingSection) {
+              // Merge artists, avoiding duplicates
+              const existingArtistIds = new Set(existingSection.artists.map(a => a.id));
+              const newArtists = newSection.artists.filter(a => !existingArtistIds.has(a.id));
+              return {
+                ...newSection,
+                artists: [...existingSection.artists, ...newArtists],
+              };
+            }
+            return newSection;
+          });
+        });
+        
         setMeta({
           fetchedAt: payload.fetchedAt,
           limitPerCategory: payload.limitPerCategory,
@@ -226,13 +243,13 @@ const Artists: React.FC = () => {
 
   // Calculate cards per row based on screen width
   const getCardsPerRow = useCallback((width: number): number => {
-    if (width >= 1920) return 10; // 3xl
-    if (width >= 1536) return 9;  // 2xl
-    if (width >= 1280) return 8;  // xl
-    if (width >= 1024) return 7;  // lg
+    if (width >= 1920) return 9;  // 3xl - reduced for better spacing
+    if (width >= 1536) return 8;   // 2xl
+    if (width >= 1280) return 7;  // xl
+    if (width >= 1024) return 6;  // lg
     if (width >= 768) return 6;   // md
-    if (width >= 640) return 5;    // sm
-    if (width >= 475) return 4;    // xs
+    if (width >= 640) return 5;   // sm
+    if (width >= 475) return 4;   // xs
     return 3; // default
   }, []);
 
@@ -587,6 +604,7 @@ const Artists: React.FC = () => {
   const handleRefresh = useCallback(() => {
     requestedLimitRef.current = {};
     setHasMoreMap({});
+    setVisibleRowsMap({}); // Reset visible rows
     setSearchQuery('');
     setSearchResults(emptySearchResult());
     setHasSearchResults(false);
@@ -602,6 +620,25 @@ const Artists: React.FC = () => {
 
   const handleLoadMore = useCallback(
     async (category: string, limitOverride?: number) => {
+      // First, check if we have more artists already loaded that we can show
+      const section = sections.find(s => s.category === category);
+      if (section) {
+        const cardsPerRow = getCardsPerRow(viewportSize.width || (typeof window !== 'undefined' ? window.innerWidth : 1024));
+        const currentVisibleRows = visibleRowsMap[category] ?? 1;
+        const currentVisibleCount = currentVisibleRows * cardsPerRow;
+        const totalAvailable = section.artists.length;
+        
+        // If we have more artists already loaded, just show more rows
+        if (currentVisibleCount < totalAvailable) {
+          setVisibleRowsMap((prev) => ({
+            ...prev,
+            [category]: currentVisibleRows + 1,
+          }));
+          return;
+        }
+      }
+      
+      // If we've shown all available artists, fetch more from server
       const current = requestedLimitRef.current[category] ?? INITIAL_LIMIT;
       const newLimit = limitOverride ?? (current + LIMIT_STEP);
       
@@ -618,6 +655,11 @@ const Artists: React.FC = () => {
       
       try {
         await fetchArtists();
+        // After fetching, show one more row
+        setVisibleRowsMap((prev) => ({
+          ...prev,
+          [category]: (prev[category] ?? 1) + 1,
+        }));
       } finally {
         // Clear loading state for this category
         setLoadingCategories((prev) => {
@@ -627,7 +669,7 @@ const Artists: React.FC = () => {
         });
       }
     },
-    [fetchArtists]
+    [fetchArtists, sections, visibleRowsMap, viewportSize.width, getCardsPerRow]
   );
 
   // Auto-fetch more artists if needed to fill one row
@@ -842,10 +884,10 @@ const Artists: React.FC = () => {
         tabIndex={0}
         onClick={() => navigate(`/artists/${artist.id}`, { state: { artist, category: categoryTitle } })}
         onKeyDown={handleCardKeyDown}
-        className="group flex flex-col items-center gap-3 cursor-pointer transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400 focus-visible:outline-offset-2 rounded-lg"
+        className="group flex flex-col items-center gap-2 xs:gap-2.5 sm:gap-3 cursor-pointer transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400 focus-visible:outline-offset-2 rounded-lg w-full max-w-full"
       >
         {/* Circular Artist Image */}
-        <div className="relative w-24 h-24 xs:w-28 xs:h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 lg:w-40 lg:h-40 xl:w-44 xl:h-44 2xl:w-48 2xl:h-48 rounded-full overflow-hidden border-2 border-white/20 group-hover:border-white/40 transition-all">
+        <div className="relative w-20 h-20 xs:w-24 xs:h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 lg:w-36 lg:h-36 xl:w-40 xl:h-40 2xl:w-44 2xl:h-44 rounded-full overflow-hidden border-2 border-white/20 group-hover:border-white/40 transition-all flex-shrink-0">
           {artist.image ? (
             <img
               src={artist.image}
@@ -863,7 +905,7 @@ const Artists: React.FC = () => {
         </div>
         
         {/* Artist Name */}
-        <h3 className="text-white text-[11px] xs:text-xs sm:text-sm md:text-base lg:text-lg font-medium text-center w-full max-w-[100px] xs:max-w-[120px] sm:max-w-[140px] md:max-w-[160px] lg:max-w-[180px] xl:max-w-[200px] truncate px-1">
+        <h3 className="text-white text-[10px] xs:text-[11px] sm:text-xs md:text-sm lg:text-base font-medium text-center w-full truncate px-1 max-w-full">
           {artist.name}
         </h3>
       </div>
@@ -968,15 +1010,15 @@ const Artists: React.FC = () => {
         hasActivePlayer ? 'pb-44 md:pb-52' : ''
       }`}
     >
-      <div className="w-full py-6 sm:py-8 md:py-12">
-        <div className="flex flex-col gap-4 xs:gap-5 sm:gap-6 md:gap-8 lg:gap-10 lg:grid lg:grid-cols-[80px_minmax(0,1fr)] lg:items-start px-3 xs:px-4 sm:px-5 md:px-6">
-          <aside className="order-first mb-4 sm:mb-6 md:mb-8 lg:order-first lg:mb-0 lg:h-[calc(100vh-8rem)] lg:sticky lg:top-24">
-            <div className="flex h-full flex-col items-center rounded-lg xs:rounded-xl sm:rounded-2xl border border-white/10 bg-[#09060f]/95 px-1.5 xs:px-2 sm:px-2.5 md:px-2 py-2 xs:py-2.5 sm:py-3 md:py-4 shadow-[0_25px_70px_rgba(20,0,40,0.45)] backdrop-blur-xl">
+      <div className="w-full py-6 sm:py-8 md:py-12 overflow-x-hidden">
+        <div className="flex flex-col gap-4 xs:gap-5 sm:gap-6 md:gap-8 lg:gap-10 lg:grid lg:grid-cols-[80px_minmax(0,1fr)] lg:items-start px-3 xs:px-4 sm:px-5 md:px-6 max-w-[1920px] mx-auto">
+          <aside className="order-first mb-4 sm:mb-6 md:mb-8 lg:order-first lg:mb-0 lg:h-[calc(100vh-8rem)] sticky top-4 sm:top-6 md:top-8 lg:top-24 z-20 self-start">
+            <div className="flex h-full flex-col items-center rounded-lg xs:rounded-xl sm:rounded-2xl border border-white/10 bg-[#09060f]/95 px-1.5 xs:px-2 sm:px-2.5 md:px-2 py-2 xs:py-2.5 sm:py-3 md:py-4 shadow-[0_25px_70px_rgba(20,0,40,0.45)] backdrop-blur-xl max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] md:max-h-[calc(100vh-4rem)] lg:max-h-[calc(100vh-6rem)] overflow-hidden">
               {hasFollowedArtists ? (
                 <>
-                  {/* Mobile/Tablet: Horizontal Scrollable */}
+                  {/* Mobile/Tablet: Horizontal Scrollable - Limited to 8 artists */}
                   <ul className="flex gap-2 xs:gap-2.5 sm:gap-3 md:gap-4 overflow-x-auto pb-2 scrollbar-hide w-full lg:hidden">
-                    {followedArtistList.map((artist) => (
+                    {followedArtistList.slice(0, 8).map((artist) => (
                       <li key={artist.id} className="flex-shrink-0">
                         <button
                           type="button"
@@ -1004,9 +1046,9 @@ const Artists: React.FC = () => {
                     ))}
                   </ul>
                   
-                  {/* Desktop: Vertical Scrollable */}
+                  {/* Desktop: Vertical Scrollable - Limited to 12 artists */}
                   <ul className="hidden lg:flex lg:flex-1 lg:flex-col lg:gap-3 lg:overflow-y-auto lg:overflow-x-visible custom-scroll lg:items-center w-full">
-                    {followedArtistList.map((artist) => (
+                    {followedArtistList.slice(0, 12).map((artist) => (
                       <li key={artist.id} className="flex-shrink-0">
                         <button
                           type="button"
@@ -1799,10 +1841,12 @@ const Artists: React.FC = () => {
             )}
 
             {isLoading && sections.length === 0 && (
-              <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-9 3xl:grid-cols-10 gap-2 xs:gap-3 sm:gap-4 md:gap-5 lg:gap-6 justify-items-center">
-                {Array.from({ length: INITIAL_LIMIT }).map((_, index) => (
-                  <ArtistCardSkeleton key={`skeleton-${index}`} />
-                ))}
+              <div className="w-full overflow-hidden">
+                <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-9 gap-6 xs:gap-7 sm:gap-8 md:gap-10 lg:gap-12 xl:gap-14 2xl:gap-16 justify-items-center max-w-full mx-auto px-2 xs:px-3 sm:px-4">
+                  {Array.from({ length: INITIAL_LIMIT }).map((_, index) => (
+                    <ArtistCardSkeleton key={`skeleton-${index}`} />
+                  ))}
+                </div>
               </div>
             )}
 
@@ -1810,10 +1854,12 @@ const Artists: React.FC = () => {
               const sortedArtists = [...section.artists].sort(
                 (a, b) => (b.popularity ?? 0) - (a.popularity ?? 0)
               );
-              // Only show one row of artists based on screen size
+              // Get visible rows for this category (default to 1 row)
+              const visibleRows = visibleRowsMap[section.category] ?? 1;
               const cardsPerRow = getCardsPerRow(viewportSize.width || (typeof window !== 'undefined' ? window.innerWidth : 1024));
-              // Limit to exactly one row
-              const visibleArtists = sortedArtists.slice(0, cardsPerRow);
+              // Show artists based on visible rows - start with just one row
+              const visibleCount = visibleRows * cardsPerRow;
+              const visibleArtists = sortedArtists.slice(0, visibleCount);
               const remainingArtists = sortedArtists.length - visibleArtists.length;
               const hasMoreFromServer = hasMoreMap[section.category] ?? false;
               const hasMore = remainingArtists > 0 || hasMoreFromServer;
@@ -1828,8 +1874,10 @@ const Artists: React.FC = () => {
                     <p className="text-xs xs:text-sm text-white/50 sm:max-w-xl">{section.description}</p>
                   </div>
 
-                  <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-9 3xl:grid-cols-10 gap-2 xs:gap-3 sm:gap-4 md:gap-5 lg:gap-6 justify-items-center">
-                    {visibleArtists.map((artist) => renderArtistCard(artist, section.title))}
+                  <div className="w-full overflow-hidden">
+                    <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-9 gap-6 xs:gap-7 sm:gap-8 md:gap-10 lg:gap-12 xl:gap-14 2xl:gap-16 justify-items-center max-w-full mx-auto px-2 xs:px-3 sm:px-4">
+                      {visibleArtists.map((artist) => renderArtistCard(artist, section.title))}
+                    </div>
                   </div>
 
                   <div className="flex flex-col items-center gap-2 pt-2">

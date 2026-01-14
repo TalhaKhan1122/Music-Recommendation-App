@@ -10,6 +10,7 @@ const AIMode: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [showCamera, setShowCamera] = useState(false); // Separate state to control camera visibility
   const [mood, setMood] = useState<string | null>(null);
   const [confidence, setConfidence] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +91,7 @@ const AIMode: React.FC = () => {
       setConfidence(0);
       setTracksFetched(false);
       setFetchedTracksCount(0);
+      setShowCamera(false); // Reset camera visibility
       lastFetchedMoodRef.current = null;
       currentMoodRef.current = null;
       
@@ -117,6 +119,7 @@ const AIMode: React.FC = () => {
         await videoRef.current.play();
         isDetectingRef.current = true; // Update ref immediately
         setIsDetecting(true);
+        setShowCamera(true); // Show camera
         console.log('🎥 Camera started, isDetecting set to true, beginning mood detection...');
         startMoodDetection();
       }
@@ -532,9 +535,9 @@ const AIMode: React.FC = () => {
     hasNavigatedRef.current = false;
     setTracksFetched(false);
     
-    // Initial detection after short delay
+    // Initial detection after 4 seconds delay
     setTimeout(async () => {
-      console.log('⏰ Initial detection timeout fired. isDetecting:', isDetecting, 'videoRef:', !!videoRef.current);
+      console.log('⏰ Initial detection timeout fired (4 seconds). isDetecting:', isDetecting, 'videoRef:', !!videoRef.current);
       console.log('⏰ Current mood state:', mood);
       console.log('⏰ Current mood ref:', currentMoodRef.current);
       
@@ -547,18 +550,48 @@ const AIMode: React.FC = () => {
           
           // ALWAYS set mood, even if from fallback - FORCE IT
           if (result && result.mood) {
-            console.log('✅ Setting mood state to:', result.mood);
-            console.log('✅ Before setMood - current mood:', mood);
+            console.log('✅ Mood detected:', result.mood);
+            
+            // IMMEDIATELY stop camera as soon as mood is detected
+            console.log('📹 Stopping camera immediately after mood detection');
+            
+            // Hide camera immediately by updating state first
+            setShowCamera(false);
+            isDetectingRef.current = false;
+            setIsDetecting(false);
+            
+            // Stop video stream immediately
+            if (videoRef.current) {
+              // Pause the video first
+              videoRef.current.pause();
+              
+              // Stop all tracks
+              if (videoRef.current.srcObject) {
+                const stream = videoRef.current.srcObject as MediaStream;
+                stream.getTracks().forEach(track => {
+                  track.stop();
+                  console.log('🛑 Video track stopped:', track.kind);
+                });
+                videoRef.current.srcObject = null;
+              }
+              
+              // Clear the video source to ensure it's completely stopped
+              videoRef.current.src = '';
+              videoRef.current.load();
+            }
+            
+            // Stop the detection interval to prevent fluctuation
+            if (detectionIntervalRef.current) {
+              console.log('🛑 Stopping detection interval');
+              clearInterval(detectionIntervalRef.current);
+              detectionIntervalRef.current = null;
+            }
+            
+            // Now set mood state after camera is stopped
             setMood(result.mood);
             setConfidence(result.confidence);
             currentMoodRef.current = result.mood; // Update ref immediately
-            console.log('✅ After setMood - ref updated to:', currentMoodRef.current);
-            
-            // Force React to re-render by updating confidence too
-            setTimeout(() => {
-              console.log('🔄 Verifying mood was set - checking state...');
-              console.log('🔄 Current mood ref:', currentMoodRef.current);
-            }, 100);
+            console.log('✅ Mood state set to:', result.mood);
             
             // Fetch music for initial mood detection and auto-navigate to player on first success
             const shouldNavigate = !hasNavigatedRef.current;
@@ -570,11 +603,34 @@ const AIMode: React.FC = () => {
             // Even if invalid, try to use fallback explicitly
             const fallbackResult = analyzeMoodFallback();
             console.log('🔄 Using explicit fallback:', fallbackResult.mood);
-            console.log('🔄 FORCE SETTING MOOD TO:', fallbackResult.mood);
+            
+            // IMMEDIATELY stop camera
+            setShowCamera(false);
+            isDetectingRef.current = false;
+            setIsDetecting(false);
+            
+            if (videoRef.current) {
+              videoRef.current.pause();
+              if (videoRef.current.srcObject) {
+                const stream = videoRef.current.srcObject as MediaStream;
+                stream.getTracks().forEach(track => track.stop());
+                videoRef.current.srcObject = null;
+              }
+              videoRef.current.src = '';
+              videoRef.current.load();
+            }
+            
+            if (detectionIntervalRef.current) {
+              clearInterval(detectionIntervalRef.current);
+              detectionIntervalRef.current = null;
+            }
+            
+            // Set mood after camera is stopped
             setMood(fallbackResult.mood);
             setConfidence(fallbackResult.confidence);
             currentMoodRef.current = fallbackResult.mood;
             lastFetchedMoodRef.current = fallbackResult.mood;
+            
             const shouldNavigate = !hasNavigatedRef.current;
             fetchMusicFromSpotify(fallbackResult.mood, shouldNavigate);
           }
@@ -584,10 +640,33 @@ const AIMode: React.FC = () => {
           // Use fallback on error - FORCE IT
           const fallbackResult = analyzeMoodFallback();
           console.log('🔄 FORCE SETTING MOOD ON ERROR TO:', fallbackResult.mood);
+          
+          // IMMEDIATELY stop camera
+          if (videoRef.current) {
+            videoRef.current.pause();
+            if (videoRef.current.srcObject) {
+              const stream = videoRef.current.srcObject as MediaStream;
+              stream.getTracks().forEach(track => track.stop());
+              videoRef.current.srcObject = null;
+            }
+            videoRef.current.src = '';
+            videoRef.current.load();
+          }
+          
+          isDetectingRef.current = false;
+          setIsDetecting(false);
+          
+          if (detectionIntervalRef.current) {
+            clearInterval(detectionIntervalRef.current);
+            detectionIntervalRef.current = null;
+          }
+          
+          // Set mood after camera is stopped
           setMood(fallbackResult.mood);
           setConfidence(fallbackResult.confidence);
           currentMoodRef.current = fallbackResult.mood;
           lastFetchedMoodRef.current = fallbackResult.mood;
+          
           const shouldNavigate = !hasNavigatedRef.current;
           fetchMusicFromSpotify(fallbackResult.mood, shouldNavigate);
         }
@@ -599,9 +678,9 @@ const AIMode: React.FC = () => {
         setMood(fallbackResult.mood);
         setConfidence(fallbackResult.confidence);
       }
-    }, 2000); // 2 second delay to allow video to stabilize
+    }, 4000); // 4 second delay to allow video to stabilize and detect mood
     
-    console.log('⏱️ Initial detection timer set for 2 seconds');
+    console.log('⏱️ Initial detection timer set for 4 seconds');
 
     // Update canvas with video feed
     if (videoRef.current && canvasRef.current) {
@@ -631,111 +710,9 @@ const AIMode: React.FC = () => {
       }
     }
 
-    // Continuously update mood detection
-    console.log('⏰ Setting up detection interval...');
-    console.log('⏰ Current isDetecting state:', isDetecting);
-    
-    // Clear any existing interval first
-    if (detectionIntervalRef.current) {
-      console.log('⏰ Clearing existing interval');
-      clearInterval(detectionIntervalRef.current);
-    }
-    
-    detectionIntervalRef.current = setInterval(async () => {
-      // Use ref to get current isDetecting value (avoid closure issues)
-      const currentlyDetecting = isDetectingRef.current;
-      console.log('⏰ ========== INTERVAL FIRED ==========');
-      console.log('⏰ isDetecting ref:', currentlyDetecting);
-      console.log('⏰ isDetecting state:', isDetecting);
-      console.log('⏰ Interval ID:', detectionIntervalRef.current);
-      
-      if (currentlyDetecting) {
-        try {
-          console.log('🔄 Interval: Starting mood analysis...');
-          console.log('🔄 Interval: Model loaded?', !!faceDetectionModelRef.current);
-          console.log('🔄 Interval: Video ready?', videoRef.current?.readyState);
-          console.log('🔄 Interval: Video dimensions?', videoRef.current?.videoWidth, 'x', videoRef.current?.videoHeight);
-          console.log('🔄 Interval: Current mood ref:', currentMoodRef.current);
-          console.log('🔄 Interval: Current mood state:', mood);
-          
-          const result = await analyzeMood();
-          console.log('🎭 Mood update detected:', result?.mood, 'Confidence:', result?.confidence);
-          console.log('🎭 Full result object:', result);
-          console.log('🎭 Previous mood was:', currentMoodRef.current);
-          
-          // ALWAYS set mood, even if from fallback or if result seems invalid
-          if (result && result.mood) {
-            const previousMood = currentMoodRef.current;
-            const moodChanged = result.mood !== previousMood;
-            
-            console.log('✅ Detected mood:', result.mood, 'Previous:', previousMood, moodChanged ? '(CHANGED!)' : '(same)');
-            console.log('📊 Confidence:', result.confidence);
-            
-            // ALWAYS update mood state - this ensures UI reflects current detection
-            // Use a small delay to ensure state updates are processed
-            setMood(result.mood);
-            setConfidence(result.confidence);
-            
-            // Force a re-render by updating a timestamp if mood changed
-            if (moodChanged) {
-              console.log('🔄 FORCING UI UPDATE - Mood changed!');
-            }
-            
-            // Update refs immediately
-            if (moodChanged) {
-              console.log('🔄 Mood changed from', previousMood, 'to', result.mood);
-              setMoodChangeCount(prev => prev + 1); // Force UI update
-            }
-            currentMoodRef.current = result.mood;
-            
-            // Fetch music only if mood changed and we haven't fetched for this mood yet
-            if (moodChanged && result.mood !== lastFetchedMoodRef.current) {
-              console.log('🔄 New mood detected, fetching music for:', result.mood);
-              lastFetchedMoodRef.current = result.mood;
-              // Fetch music but DON'T auto-navigate - let user see mood changes continuously
-              fetchMusicFromSpotify(result.mood, false);
-            } else if (!moodChanged) {
-              console.log('⏭️ Same mood as before:', result.mood);
-            } else {
-              console.log('🔄 Mood changed but already fetched music for:', result.mood);
-            }
-          } else {
-            console.warn('⚠️ No mood in result, using fallback:', result);
-            // Use fallback explicitly
-            const fallbackResult = analyzeMoodFallback();
-            console.log('🔄 Using explicit fallback in interval:', fallbackResult.mood);
-            const previousMood = currentMoodRef.current;
-            const moodChanged = fallbackResult.mood !== previousMood;
-            
-            // ALWAYS update mood state - this ensures UI reflects current detection
-            setMood(fallbackResult.mood);
-            setConfidence(fallbackResult.confidence);
-            
-            if (moodChanged) {
-              console.log('🔄 Fallback mood changed from', previousMood, 'to', fallbackResult.mood);
-              setMoodChangeCount(prev => prev + 1); // Force UI update
-            }
-            currentMoodRef.current = fallbackResult.mood;
-            
-            // Fetch music only if mood changed and we haven't fetched for this mood yet
-            if (moodChanged && fallbackResult.mood !== lastFetchedMoodRef.current) {
-              lastFetchedMoodRef.current = fallbackResult.mood;
-              // Don't auto-navigate on fallback in interval - let user see changes
-              fetchMusicFromSpotify(fallbackResult.mood, false);
-            }
-          }
-        } catch (error) {
-          console.error('❌ Error in mood detection interval:', error);
-          console.error('❌ Error stack:', (error as Error).stack);
-        }
-      } else {
-        console.log('⏸️ Detection stopped (isDetecting is false), but keeping interval running');
-        console.log('⏸️ This should not happen - isDetecting should be true');
-      }
-    }, 2000); // Update mood every 2 seconds for more responsive detection
-    
-    console.log('✅ Detection interval set up with ID:', detectionIntervalRef.current);
-    console.log('✅ Interval will fire every 2 seconds');
+    // Note: We no longer use a continuous interval to prevent fluctuation
+    // Mood is detected once at 4 seconds, then camera stops automatically
+    console.log('⏰ Detection will happen once at 4 seconds, then camera will stop automatically');
   };
 
   // Fetch music from Spotify based on detected mood and auto-navigate
@@ -780,6 +757,7 @@ const AIMode: React.FC = () => {
         // Small delay to let user see the success message
         setTimeout(() => {
           // Stop detection before navigating
+          setShowCamera(false);
           isDetectingRef.current = false;
           setIsDetecting(false);
           
@@ -849,6 +827,7 @@ const AIMode: React.FC = () => {
     hasNavigatedRef.current = true;
 
     // Now stop detection
+    setShowCamera(false); // Hide camera immediately
     isDetectingRef.current = false;
     setIsDetecting(false);
     
@@ -888,6 +867,7 @@ const AIMode: React.FC = () => {
   useEffect(() => {
     return () => {
       // Cleanup without showing toast (silent cleanup on unmount)
+      setShowCamera(false);
       isDetectingRef.current = false;
       setIsDetecting(false);
       
@@ -968,15 +948,15 @@ const AIMode: React.FC = () => {
                   playsInline
                   muted
                   className="w-full h-auto"
-                  style={{ display: isDetecting ? 'block' : 'none' }}
+                  style={{ display: showCamera ? 'block' : 'none' }}
                 />
                 <canvas
                   ref={canvasRef}
                   className="w-full h-auto absolute top-0 left-0"
-                  style={{ display: isDetecting ? 'block' : 'none' }}
+                  style={{ display: showCamera ? 'block' : 'none' }}
                 />
                 
-                {!isDetecting && (
+                {!showCamera && (
                   <div className="py-16 sm:py-24 md:py-32 text-center">
                     <div className="text-white/40 mb-4 relative">
                       <div className="absolute inset-0 flex items-center justify-center">
