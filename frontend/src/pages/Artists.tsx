@@ -9,6 +9,7 @@ import type {
   Track,
 } from '../api/music.api';
 import { getTopArtistsShowcase, searchSpotifyCatalog, getTracksByMood, getRecommendationsByArtists, getArtistById } from '../api/music.api';
+import { createStation as createStationAPI, getStations as getStationsAPI } from '../api/station.api';
 import { useSpotifyPlayer, useFollowedArtists } from '../context';
 import CreateStationModal from '../components/CreateStationModal';
 import BeatifyLogo from '../assets/beatify-logo.png';
@@ -264,6 +265,20 @@ const Artists: React.FC = () => {
     fetchArtists();
   }, [fetchArtists]);
 
+  // Load custom stations from API on mount
+  useEffect(() => {
+    const loadCustomStations = async () => {
+      try {
+        const stations = await getStationsAPI();
+        setCustomStations(stations);
+      } catch (error: any) {
+        console.error('Error loading custom stations:', error);
+        // Don't show error toast on initial load, just log it
+      }
+    };
+    loadCustomStations();
+  }, []);
+
   const fetchPopularTracks = useCallback(async (category: 'punjabi' | 'english' | 'global' | 'pakistani') => {
     setIsLoadingPopularTracks((prev) => ({ ...prev, [category]: true }));
     try {
@@ -480,53 +495,32 @@ const Artists: React.FC = () => {
     setIsLoadingStations(false);
   }, [followedArtists, checkScrollButtons]);
 
-  // Load custom stations from localStorage on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('customStations');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setCustomStations(Array.isArray(parsed) ? parsed : []);
-      }
-    } catch (error) {
-      console.error('Error loading custom stations:', error);
-    }
-  }, []);
 
   // Handle creating custom station
-  const handleCreateCustomStation = useCallback((artists: Array<{ id: string; name: string; image?: string }>) => {
+  const handleCreateCustomStation = useCallback(async (artists: Array<{ id: string; name: string; image?: string }>) => {
     if (artists.length < 2 || artists.length > 5) {
       toast.error('Please select 2-5 artists');
       return;
     }
 
     const stationName = artists.map(a => a.name).join(' & ');
-    const stationId = `custom-${Date.now()}-${artists.map(a => a.id).join('-')}`;
     
     const colors = [
       '#FF6B35', '#FF4757', '#FF6348', '#FF8C42',
       '#E74C3C', '#FF6B9D', '#FF8E53', '#FF5252',
     ];
     
-    const newStation = {
-      id: stationId,
-      name: stationName,
-      artists: artists,
-      color: colors[Math.floor(Math.random() * colors.length)],
-    };
+    const color = colors[Math.floor(Math.random() * colors.length)];
 
-    const updated = [...customStations, newStation];
-    setCustomStations(updated);
-    
-    // Save to localStorage
     try {
-      localStorage.setItem('customStations', JSON.stringify(updated));
-    } catch (error) {
-      console.error('Error saving custom station:', error);
+      const newStation = await createStationAPI(stationName, artists, color);
+      setCustomStations((prev) => [...prev, newStation]);
+      toast.success(`Created station: ${stationName}`);
+    } catch (error: any) {
+      console.error('Error creating station:', error);
+      toast.error(error.message || 'Failed to create station');
     }
-
-    toast.success(`Created station: ${stationName}`);
-  }, [customStations]);
+  }, []);
 
   // Scroll functions
   const scrollStations = useCallback((direction: 'left' | 'right') => {
@@ -1116,7 +1110,7 @@ const Artists: React.FC = () => {
                     onChange={handleSearchChange}
                     placeholder="What do you want to play?"
                     className={`flex-1 bg-transparent text-base sm:text-lg text-white placeholder:text-white/60 focus:outline-none pl-12 sm:pl-14 py-4 sm:py-5 ${
-                      searchQuery ? 'pr-20 sm:pr-24' : 'pr-16 sm:pr-20'
+                      searchQuery ? 'pr-12 sm:pr-14' : 'pr-4 sm:pr-5'
                     }`}
                     aria-label="Search Spotify"
                   />
@@ -1126,7 +1120,7 @@ const Artists: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleClearSearch}
-                      className="absolute right-14 sm:right-16 flex items-center justify-center w-6 h-6 rounded-full hover:bg-white/10 transition-colors group"
+                      className="absolute right-4 sm:right-5 flex items-center justify-center w-6 h-6 rounded-full hover:bg-white/10 transition-colors group"
                       aria-label="Clear search"
                     >
                       <svg 
@@ -1145,30 +1139,6 @@ const Artists: React.FC = () => {
                       </svg>
                     </button>
                   )}
-                  
-                  {/* Separator */}
-                  <div className="absolute right-12 sm:right-14 h-6 w-px bg-white/20"></div>
-                  
-                  {/* Right Icon (Folder/Queue) */}
-                  <button
-                    type="button"
-                    className="absolute right-4 sm:right-5 flex items-center justify-center w-8 h-8 rounded-full hover:bg-white/10 transition-colors group"
-                    aria-label="Queue"
-                  >
-                    <svg 
-                      width="20" 
-                      height="20" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="text-white/70 group-hover:text-white transition-colors"
-                    >
-                      <path d="M4 7h16M4 12h16M4 17h16"></path>
-                    </svg>
-                  </button>
                 </div>
               </form>
             </div>
@@ -1493,337 +1463,6 @@ const Artists: React.FC = () => {
               onCreateStation={handleCreateCustomStation}
             />
 
-            {/* Popular Songs Sections for Each Category */}
-            {!hasSearchResults && (
-              <>
-                {/* Punjabi Popular Songs - Recommendations */}
-                <section className="space-y-6">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                      <p className="text-xs uppercase tracking-[0.35em] text-white/40">Punjabi</p>
-                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                          AI Recommended
-                        </span>
-                    </div>
-                      <h2 className="text-2xl font-semibold">Recommended Punjabi Songs</h2>
-                    </div>
-                    <div className="flex items-center gap-3">
-                    <p className="text-sm text-white/50 sm:max-w-xl">
-                        Personalized Punjabi tracks recommended by Spotify AI.
-                      </p>
-                      <button
-                        onClick={() => fetchPopularTracks('punjabi')}
-                        disabled={isLoadingPopularTracks.punjabi}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Refresh recommendations"
-                      >
-                        {isLoadingPopularTracks.punjabi ? '...' : '↻'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {isLoadingPopularTracks.punjabi ? (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {Array.from({ length: 8 }).map((_, index) => (
-                        <div
-                          key={`punjabi-track-skeleton-${index}`}
-                          className="rounded-xl border border-white/10 bg-white/5 p-4 animate-pulse"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded-lg bg-white/10 flex-shrink-0" />
-                            <div className="flex-1 space-y-2">
-                              <div className="h-4 w-3/4 rounded bg-white/10" />
-                              <div className="h-3 w-1/2 rounded bg-white/5" />
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : popularTracks.punjabi.length > 0 ? (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {popularTracks.punjabi.slice(0, 12).map((track) => (
-                        <button
-                          key={track.id}
-                          type="button"
-                          onClick={() => handlePlayTrack(track)}
-                          className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4 text-left transition-all hover:border-white/20 hover:bg-white/10 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
-                        >
-                          <div className="flex items-center gap-3">
-                            {track.albumImage ? (
-                              <img
-                                src={track.albumImage}
-                                alt={track.album}
-                                className="h-12 w-12 rounded-lg object-cover flex-shrink-0"
-                                loading="lazy"
-                              />
-                            ) : (
-                              <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center flex-shrink-0">
-                                <img 
-                                  src={BeatifyLogo} 
-                                  alt="Beatify" 
-                                  className="w-8 h-8 object-contain opacity-70"
-                                />
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-white truncate group-hover:text-purple-300 transition-colors">
-                                {track.name}
-                              </p>
-                              <p className="text-xs text-white/60 truncate mt-0.5">{track.artists}</p>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </section>
-
-                {/* English Popular Songs - Recommendations */}
-                <section className="space-y-6">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                      <p className="text-xs uppercase tracking-[0.35em] text-white/40">English</p>
-                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                          AI Recommended
-                        </span>
-                    </div>
-                      <h2 className="text-2xl font-semibold">Recommended English Songs</h2>
-                    </div>
-                    <div className="flex items-center gap-3">
-                    <p className="text-sm text-white/50 sm:max-w-xl">
-                        Personalized English tracks recommended by Spotify AI.
-                      </p>
-                      <button
-                        onClick={() => fetchPopularTracks('english')}
-                        disabled={isLoadingPopularTracks.english}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Refresh recommendations"
-                      >
-                        {isLoadingPopularTracks.english ? '...' : '↻'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {isLoadingPopularTracks.english ? (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {Array.from({ length: 8 }).map((_, index) => (
-                        <div
-                          key={`english-track-skeleton-${index}`}
-                          className="rounded-xl border border-white/10 bg-white/5 p-4 animate-pulse"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded-lg bg-white/10 flex-shrink-0" />
-                            <div className="flex-1 space-y-2">
-                              <div className="h-4 w-3/4 rounded bg-white/10" />
-                              <div className="h-3 w-1/2 rounded bg-white/5" />
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : popularTracks.english.length > 0 ? (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {popularTracks.english.slice(0, 12).map((track) => (
-                        <button
-                          key={track.id}
-                          type="button"
-                          onClick={() => handlePlayTrack(track)}
-                          className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4 text-left transition-all hover:border-white/20 hover:bg-white/10 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
-                        >
-                          <div className="flex items-center gap-3">
-                            {track.albumImage ? (
-                              <img
-                                src={track.albumImage}
-                                alt={track.album}
-                                className="h-12 w-12 rounded-lg object-cover flex-shrink-0"
-                                loading="lazy"
-                              />
-                            ) : (
-                              <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center flex-shrink-0">
-                                <img 
-                                  src={BeatifyLogo} 
-                                  alt="Beatify" 
-                                  className="w-8 h-8 object-contain opacity-70"
-                                />
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-white truncate group-hover:text-purple-300 transition-colors">
-                                {track.name}
-                              </p>
-                              <p className="text-xs text-white/60 truncate mt-0.5">{track.artists}</p>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </section>
-
-                {/* Global Popular Songs - Recommendations */}
-                <section className="space-y-6">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                      <p className="text-xs uppercase tracking-[0.35em] text-white/40">Global</p>
-                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                          AI Recommended
-                        </span>
-                    </div>
-                      <h2 className="text-2xl font-semibold">Recommended Global Songs</h2>
-                    </div>
-                    <div className="flex items-center gap-3">
-                    <p className="text-sm text-white/50 sm:max-w-xl">
-                        Personalized global tracks recommended by Spotify AI.
-                      </p>
-                      <button
-                        onClick={() => fetchPopularTracks('global')}
-                        disabled={isLoadingPopularTracks.global}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Refresh recommendations"
-                      >
-                        {isLoadingPopularTracks.global ? '...' : '↻'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {isLoadingPopularTracks.global ? (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {Array.from({ length: 8 }).map((_, index) => (
-                        <div
-                          key={`global-track-skeleton-${index}`}
-                          className="rounded-xl border border-white/10 bg-white/5 p-4 animate-pulse"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded-lg bg-white/10 flex-shrink-0" />
-                            <div className="flex-1 space-y-2">
-                              <div className="h-4 w-3/4 rounded bg-white/10" />
-                              <div className="h-3 w-1/2 rounded bg-white/5" />
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : popularTracks.global.length > 0 ? (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {popularTracks.global.slice(0, 12).map((track) => (
-                        <button
-                          key={track.id}
-                          type="button"
-                          onClick={() => handlePlayTrack(track)}
-                          className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4 text-left transition-all hover:border-white/20 hover:bg-white/10 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
-                        >
-                          <div className="flex items-center gap-3">
-                            {track.albumImage ? (
-                              <img
-                                src={track.albumImage}
-                                alt={track.album}
-                                className="h-12 w-12 rounded-lg object-cover flex-shrink-0"
-                                loading="lazy"
-                              />
-                            ) : (
-                              <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center flex-shrink-0">
-                                <img 
-                                  src={BeatifyLogo} 
-                                  alt="Beatify" 
-                                  className="w-8 h-8 object-contain opacity-70"
-                                />
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-white truncate group-hover:text-purple-300 transition-colors">
-                                {track.name}
-                              </p>
-                              <p className="text-xs text-white/60 truncate mt-0.5">{track.artists}</p>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </section>
-
-                {/* Pakistani Popular Songs - Recommendations */}
-                <section className="space-y-6">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                      <p className="text-xs uppercase tracking-[0.35em] text-white/40">Pakistani</p>
-                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                          AI Recommended
-                        </span>
-                    </div>
-                      <h2 className="text-2xl font-semibold">Recommended Pakistani Songs</h2>
-                    </div>
-                    <div className="flex items-center gap-3">
-                    <p className="text-sm text-white/50 sm:max-w-xl">
-                        Personalized Pakistani tracks recommended by Spotify AI.
-                      </p>
-                      <button
-                        onClick={() => fetchPopularTracks('pakistani')}
-                        disabled={isLoadingPopularTracks.pakistani}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Refresh recommendations"
-                      >
-                        {isLoadingPopularTracks.pakistani ? '...' : '↻'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {isLoadingPopularTracks.pakistani ? (
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {Array.from({ length: 8 }).map((_, index) => (
-                        <div
-                          key={`pakistani-track-skeleton-${index}`}
-                          className="rounded-lg border border-white/10 bg-white/5 p-2.5 animate-pulse"
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className="h-10 w-10 rounded-lg bg-white/10 flex-shrink-0" />
-                            <div className="flex-1 space-y-1.5">
-                              <div className="h-3.5 w-3/4 rounded bg-white/10" />
-                              <div className="h-2.5 w-1/2 rounded bg-white/5" />
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : popularTracks.pakistani.length > 0 ? (
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {popularTracks.pakistani.slice(0, 12).map((track) => (
-                        <button
-                          key={track.id}
-                          type="button"
-                          onClick={() => handlePlayTrack(track)}
-                          className="group relative overflow-hidden rounded-lg border border-white/10 bg-white/5 p-2.5 text-left transition-all hover:border-white/20 hover:bg-white/10 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
-                        >
-                          <div className="flex items-center gap-2">
-                            {track.albumImage ? (
-                              <img
-                                src={track.albumImage}
-                                alt={track.album}
-                                className="h-10 w-10 rounded-lg object-cover flex-shrink-0"
-                                loading="lazy"
-                              />
-                            ) : (
-                              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center flex-shrink-0">
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-white truncate group-hover:text-purple-300 transition-colors">
-                                {track.name}
-                              </p>
-                              <p className="text-[10px] text-white/60 truncate mt-0.5">{track.artists}</p>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </section>
-              </>
-            )}
 
             {error && (
               <div className="rounded-3xl border border-red-500/40 bg-red-500/10 px-6 py-4 text-sm text-red-200">
@@ -1864,42 +1503,141 @@ const Artists: React.FC = () => {
               const hasMoreFromServer = hasMoreMap[section.category] ?? false;
               const hasMore = remainingArtists > 0 || hasMoreFromServer;
 
+              // Map category names to popular tracks keys
+              const categoryToTracksKey: Record<string, 'punjabi' | 'english' | 'global' | 'pakistani'> = {
+                'punjabi': 'punjabi',
+                'english': 'english',
+                'global': 'global',
+                'pakistani': 'pakistani',
+              };
+              const tracksKey = categoryToTracksKey[section.category.toLowerCase()];
+              const categoryTracks = tracksKey ? popularTracks[tracksKey] : [];
+              const isLoadingCategoryTracks = tracksKey ? isLoadingPopularTracks[tracksKey] : false;
+
               return (
-                <section key={section.category} className="space-y-4 sm:space-y-6">
-                  <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div>
-                      <p className="text-[10px] xs:text-xs uppercase tracking-[0.35em] text-white/40">{section.category}</p>
-                      <h2 className="text-xl xs:text-2xl font-semibold">{section.title}</h2>
+                <React.Fragment key={section.category}>
+                  {/* Artists Section */}
+                  <section className="space-y-4 sm:space-y-6">
+                    <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-end sm:justify-between">
+                      <div>
+                        <p className="text-[10px] xs:text-xs uppercase tracking-[0.35em] text-white/40">{section.category}</p>
+                        <h2 className="text-xl xs:text-2xl font-semibold">{section.title}</h2>
+                      </div>
+                      <p className="text-xs xs:text-sm text-white/50 sm:max-w-xl">{section.description}</p>
                     </div>
-                    <p className="text-xs xs:text-sm text-white/50 sm:max-w-xl">{section.description}</p>
-                  </div>
 
-                  <div className="w-full overflow-hidden">
-                    <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-9 gap-6 xs:gap-7 sm:gap-8 md:gap-10 lg:gap-12 xl:gap-14 2xl:gap-16 justify-items-center max-w-full mx-auto px-2 xs:px-3 sm:px-4">
-                      {visibleArtists.map((artist) => renderArtistCard(artist, section.title))}
+                    <div className="w-full overflow-hidden">
+                      <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-9 gap-6 xs:gap-7 sm:gap-8 md:gap-10 lg:gap-12 xl:gap-14 2xl:gap-16 justify-items-center max-w-full mx-auto px-2 xs:px-3 sm:px-4">
+                        {visibleArtists.map((artist) => renderArtistCard(artist, section.title))}
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex flex-col items-center gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => handleLoadMore(section.category)}
-                      disabled={!hasMore || loadingCategories.has(section.category)}
-                      className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs uppercase tracking-[0.3em] text-white/70 transition-colors hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {loadingCategories.has(section.category) ? (
-                        <>
-                          <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
-                          <span>Loading...</span>
-                        </>
-                      ) : hasMore ? (
-                        'Load more'
-                      ) : (
-                        'No more artists'
-                      )}
-                    </button>
-                  </div>
-                </section>
+                    <div className="flex flex-col items-center gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => handleLoadMore(section.category)}
+                        disabled={!hasMore || loadingCategories.has(section.category)}
+                        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs uppercase tracking-[0.3em] text-white/70 transition-colors hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {loadingCategories.has(section.category) ? (
+                          <>
+                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white"></div>
+                            <span>Loading...</span>
+                          </>
+                        ) : hasMore ? (
+                          'Load more'
+                        ) : (
+                          'No more artists'
+                        )}
+                      </button>
+                    </div>
+                  </section>
+
+                  {/* Popular Songs Section for this Category */}
+                  {tracksKey && (
+                    <section className="space-y-6 mt-8">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-xs uppercase tracking-[0.35em] text-white/40">{section.category}</p>
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                              AI Recommended
+                            </span>
+                          </div>
+                          <h2 className="text-2xl font-semibold">Recommended {section.category} Songs</h2>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <p className="text-sm text-white/50 sm:max-w-xl">
+                            Personalized {section.category.toLowerCase()} tracks recommended by Spotify AI.
+                          </p>
+                          <button
+                            onClick={() => fetchPopularTracks(tracksKey)}
+                            disabled={isLoadingCategoryTracks}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Refresh recommendations"
+                          >
+                            {isLoadingCategoryTracks ? '...' : '↻'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {isLoadingCategoryTracks ? (
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {Array.from({ length: 8 }).map((_, index) => (
+                            <div
+                              key={`${tracksKey}-track-skeleton-${index}`}
+                              className="rounded-xl border border-white/10 bg-white/5 p-4 animate-pulse"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="h-12 w-12 rounded-lg bg-white/10 flex-shrink-0" />
+                                <div className="flex-1 space-y-2">
+                                  <div className="h-4 w-3/4 rounded bg-white/10" />
+                                  <div className="h-3 w-1/2 rounded bg-white/5" />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : categoryTracks.length > 0 ? (
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {categoryTracks.slice(0, 12).map((track) => (
+                            <button
+                              key={track.id}
+                              type="button"
+                              onClick={() => handlePlayTrack(track)}
+                              className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 p-4 text-left transition-all hover:border-white/20 hover:bg-white/10 hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400"
+                            >
+                              <div className="flex items-center gap-3">
+                                {track.albumImage ? (
+                                  <img
+                                    src={track.albumImage}
+                                    alt={track.album}
+                                    className="h-12 w-12 rounded-lg object-cover flex-shrink-0"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center flex-shrink-0">
+                                    <img 
+                                      src={BeatifyLogo} 
+                                      alt="Beatify" 
+                                      className="w-8 h-8 object-contain opacity-70"
+                                    />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-white truncate group-hover:text-purple-300 transition-colors">
+                                    {track.name}
+                                  </p>
+                                  <p className="text-xs text-white/60 truncate mt-0.5">{track.artists}</p>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </section>
+                  )}
+                </React.Fragment>
               );
             })}
 

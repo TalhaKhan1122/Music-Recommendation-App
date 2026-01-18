@@ -229,38 +229,43 @@ const StationDetail: React.FC = () => {
             {featuredArtists.length > 0 && (() => {
               const artistCount = featuredArtists.length;
               
-              // Calculate layout based on number of artists
+              // Calculate layout based on number of artists - INCREASED SIZES
               const getArtistLayout = (index: number, total: number) => {
                 if (total === 1) {
-                  return { size: 180, offset: 0 };
+                  return { size: 280, offset: 0 };
                 } else if (total === 2) {
-                  const offset = index === 0 ? -50 : 50;
-                  return { size: 140, offset };
+                  const offset = index === 0 ? -70 : 70;
+                  return { size: 220, offset };
                 } else if (total === 3) {
-                  const size = index === 1 ? 150 : 120;
-                  const offset = index === 0 ? -70 : index === 1 ? 0 : 70;
+                  const size = index === 1 ? 240 : 180;
+                  const offset = index === 0 ? -100 : index === 1 ? 0 : 100;
                   return { size, offset };
                 } else if (total === 4) {
-                  const size = index < 2 ? 110 : 100;
-                  const offset = index === 0 ? -80 : index === 1 ? -25 : index === 2 ? 25 : 80;
+                  const size = index < 2 ? 170 : 160;
+                  const offset = index === 0 ? -110 : index === 1 ? -35 : index === 2 ? 35 : 110;
                   return { size, offset };
                 } else { // total === 5
-                  const size = index === 2 ? 130 : 100; // Center is larger
-                  const offset = index === 0 ? -90 : index === 1 ? -45 : index === 2 ? 0 : index === 3 ? 45 : 90;
+                  const size = index === 2 ? 200 : 150; // Center is larger
+                  const offset = index === 0 ? -120 : index === 1 ? -60 : index === 2 ? 0 : index === 3 ? 60 : 120;
                   return { size, offset };
                 }
               };
 
-              // Calculate container width based on number of artists
-              const containerWidth = artistCount === 1 ? 200 : 
-                                    artistCount === 2 ? 300 : 
-                                    artistCount === 3 ? 340 : 
-                                    artistCount === 4 ? 380 : 420;
+              // Calculate container width based on number of artists - INCREASED
+              const containerWidth = artistCount === 1 ? 300 : 
+                                    artistCount === 2 ? 450 : 
+                                    artistCount === 3 ? 500 : 
+                                    artistCount === 4 ? 550 : 600;
+              
+              const containerHeight = artistCount === 1 ? 300 : 
+                                      artistCount === 2 ? 250 : 
+                                      artistCount === 3 ? 280 : 
+                                      artistCount === 4 ? 250 : 280;
 
               return (
                 <div className="relative flex flex-col items-center justify-center w-full">
-                  {/* Artist Images */}
-                  <div className="relative flex items-center justify-center mb-6" style={{ width: `${containerWidth}px`, height: '180px' }}>
+                  {/* Artist Images - Made Bigger and More Prominent */}
+                  <div className="relative flex items-center justify-center mb-4" style={{ width: `${containerWidth}px`, height: `${containerHeight}px` }}>
                     {featuredArtists.map((artist, index) => {
                       const { size, offset } = getArtistLayout(index, artistCount);
                       const zIndex = artistCount === 1 ? 10 : 
@@ -272,7 +277,7 @@ const StationDetail: React.FC = () => {
                       return (
                         <div
                           key={artist.id}
-                          className="absolute rounded-full overflow-hidden bg-gray-300 flex items-center justify-center cursor-pointer hover:scale-115 transition-all duration-300 group"
+                          className="absolute rounded-full overflow-hidden bg-gray-300 flex flex-col items-center justify-center cursor-pointer hover:scale-110 transition-all duration-300 group"
                           onClick={() => handleArtistClick(artist.id, artist.name, artist.image)}
                           style={{
                             width: `${size}px`,
@@ -280,8 +285,8 @@ const StationDetail: React.FC = () => {
                             left: `calc(50% + ${offset}px)`,
                             transform: 'translateX(-50%)',
                             zIndex: zIndex,
-                            border: '3px solid rgba(255, 255, 255, 0.4)',
-                            boxShadow: '0 6px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1) inset',
+                            border: '4px solid rgba(255, 255, 255, 0.5)',
+                            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.15) inset',
                           }}
                         >
                           {artist.image ? (
@@ -291,49 +296,29 @@ const StationDetail: React.FC = () => {
                               className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                             />
                           ) : (
-                            <span className="text-gray-600 text-3xl font-bold">
+                            <span className="text-gray-600 text-5xl font-bold">
                               {artist.name.charAt(0).toUpperCase()}
                             </span>
                           )}
                           {/* Hover overlay */}
                           <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-300 rounded-full"></div>
+                          
+                          {/* Small artist name below image - subtle */}
+                          <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 w-full px-2">
+                            <span 
+                              className="block text-[10px] text-white/60 text-center truncate max-w-full"
+                              style={{ 
+                                textShadow: '0 1px 3px rgba(0, 0, 0, 0.8)',
+                                fontSize: size > 200 ? '11px' : size > 150 ? '10px' : '9px'
+                              }}
+                              title={artist.name}
+                            >
+                              {artist.name}
+                            </span>
+                          </div>
                         </div>
                       );
                     })}
-                  </div>
-
-                  {/* Artist Names */}
-                  <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3 px-4 w-full max-w-4xl">
-                    {featuredArtists.map((artist, index) => (
-                      <React.Fragment key={artist.id}>
-                        <button
-                          onClick={() => handleArtistClick(artist.id, artist.name, artist.image)}
-                          className="text-sm md:text-base lg:text-lg text-white/95 hover:text-white font-semibold transition-colors px-3 py-1.5 rounded-lg hover:bg-white/10 min-w-0 flex-shrink"
-                          style={{ 
-                            textShadow: '0 2px 6px rgba(0, 0, 0, 0.5)',
-                            maxWidth: artistCount === 1 ? '350px' : 
-                                     artistCount === 2 ? '220px' : 
-                                     artistCount === 3 ? '200px' : 
-                                     artistCount === 4 ? '170px' : '150px',
-                          }}
-                          title={artist.name}
-                        >
-                          <span 
-                            className="block overflow-hidden text-ellipsis whitespace-nowrap text-center"
-                          >
-                            {artist.name}
-                          </span>
-                        </button>
-                        {index < featuredArtists.length - 1 && (
-                          <span 
-                            className="text-white/70 text-lg md:text-xl font-bold flex-shrink-0" 
-                            style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.5)' }}
-                          >
-                            &
-                          </span>
-                        )}
-                      </React.Fragment>
-                    ))}
                   </div>
                 </div>
               );

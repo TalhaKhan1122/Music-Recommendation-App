@@ -11,6 +11,7 @@ import {
   removeTrackFromFavorites,
   getPlaylists,
   addTrackToPlaylist,
+  createPlaylist,
   type PlaylistSummary 
 } from '../api/music.api';
 
@@ -24,6 +25,10 @@ const GlobalSpotifyPlayer: React.FC = () => {
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
   const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
+  const [showCreatePlaylistModal, setShowCreatePlaylistModal] = useState(false);
+  const [newPlaylistName, setNewPlaylistName] = useState('');
+  const [newPlaylistDescription, setNewPlaylistDescription] = useState('');
+  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
   const actionMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -191,6 +196,43 @@ const GlobalSpotifyPlayer: React.FC = () => {
     setShowActionMenu(false);
   };
 
+  const handleCreatePlaylist = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentTrack) return;
+    
+    if (!newPlaylistName.trim()) {
+      toast.error('Playlist name is required');
+      return;
+    }
+
+    setIsCreatingPlaylist(true);
+    try {
+      // Create the new playlist
+      const newPlaylist = await createPlaylist(newPlaylistName.trim(), newPlaylistDescription.trim() || undefined);
+      
+      // Automatically add the current track to the new playlist
+      await addTrackToPlaylist(newPlaylist.id, currentTrack);
+      
+      toast.success(`Playlist "${newPlaylist.name}" created and track added!`, {
+        position: 'top-right',
+        autoClose: 3000,
+      });
+      
+      setShowCreatePlaylistModal(false);
+      setNewPlaylistName('');
+      setNewPlaylistDescription('');
+      setShowActionMenu(false);
+    } catch (error: any) {
+      console.error('Error creating playlist:', error);
+      toast.error(error.message || 'Failed to create playlist', {
+        position: 'top-right',
+        autoClose: 3000,
+      });
+    } finally {
+      setIsCreatingPlaylist(false);
+    }
+  };
+
   useEffect(() => {
     console.log('🎵 GlobalSpotifyPlayer: spotifyReference changed:', spotifyReference);
     console.log('🎵 GlobalSpotifyPlayer: currentTrack:', currentTrack?.name);
@@ -291,34 +333,19 @@ const GlobalSpotifyPlayer: React.FC = () => {
 
                     <div className="border-t border-white/10 my-1"></div>
 
-                    <a
-                      href={currentTrack.externalUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => setShowActionMenu(false)}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCreatePlaylistModal(true);
+                        setShowActionMenu(false);
+                      }}
                       className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/10 transition-colors flex items-center gap-3"
                     >
-                      {currentTrack.source === 'youtube' || currentTrack.externalUrl?.includes('youtube.com') ? (
-                        <>
-                          <YouTubeIcon size={18} className="w-[18px] h-[18px]" />
-                          <span>Open in YouTube</span>
-                        </>
-                      ) : currentTrack.source === 'soundcloud' || currentTrack.externalUrl?.includes('soundcloud.com') ? (
-                        <>
-                          <SoundCloudIcon size={18} className="w-[18px] h-[18px]" />
-                          <span>Open in SoundCloud</span>
-                        </>
-                      ) : (
-                        <>
-                          <img 
-                            src={BeatifyLogo} 
-                            alt="Beatify" 
-                            className="w-6 h-6 object-contain"
-                          />
-                          <span>Open in Spotify</span>
-                        </>
-                      )}
-                    </a>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                      <span>Create playlist</span>
+                    </button>
                   </div>
                 </div>
               )}
@@ -395,6 +422,86 @@ const GlobalSpotifyPlayer: React.FC = () => {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Create Playlist Modal */}
+      {showCreatePlaylistModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowCreatePlaylistModal(false)}>
+          <div className="bg-gray-900/95 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold text-white">Create New Playlist</h3>
+              <button
+                onClick={() => {
+                  setShowCreatePlaylistModal(false);
+                  setNewPlaylistName('');
+                  setNewPlaylistDescription('');
+                }}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreatePlaylist}>
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="playlist-name" className="block text-sm font-medium text-gray-300 mb-2">
+                    Playlist Name <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    id="playlist-name"
+                    type="text"
+                    value={newPlaylistName}
+                    onChange={(e) => setNewPlaylistName(e.target.value)}
+                    placeholder="My New Playlist"
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="playlist-description" className="block text-sm font-medium text-gray-300 mb-2">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    id="playlist-description"
+                    value={newPlaylistDescription}
+                    onChange={(e) => setNewPlaylistDescription(e.target.value)}
+                    placeholder="Add a description..."
+                    rows={3}
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreatePlaylistModal(false);
+                      setNewPlaylistName('');
+                      setNewPlaylistDescription('');
+                    }}
+                    className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-white text-sm transition-colors"
+                    disabled={isCreatingPlaylist}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCreatingPlaylist || !newPlaylistName.trim()}
+                    className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-white text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isCreatingPlaylist ? 'Creating...' : 'Create Playlist'}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}
