@@ -26,7 +26,7 @@ const AIMode: React.FC = () => {
   const [isModelLoading, setIsModelLoading] = useState(false);
   const modelLoadPromiseRef = useRef<Promise<void> | null>(null);
   const [modelLoadError, setModelLoadError] = useState<string | null>(null);
-
+  const [selectionMode, setSelectionMode] = useState<'camera' | 'manual'>('camera'); // Track selection mode
 
   // Track mood state changes for debugging
   useEffect(() => {
@@ -114,8 +114,13 @@ const AIMode: React.FC = () => {
       case 'happy': return '#10B981';
       case 'sad': return '#3B82F6';
       case 'excited': return '#EC4899';
+      case 'surprised': return '#F59E0B';
       case 'relaxed': return '#8B5CF6';
+      case 'neutral': return '#6B7280';
       case 'focused': return '#F59E0B';
+      case 'angry': return '#EF4444';
+      case 'fearful': return '#8B5CF6';
+      case 'disgusted': return '#84CC16';
       default: return '#6B7280';
     }
   };
@@ -219,7 +224,7 @@ const AIMode: React.FC = () => {
   };
 
   // Analyze mood from facial expression using face-api.js
-  const analyzeMood = async (): Promise<{ mood: string; confidence: number }> => {
+  const analyzeMood = async (): Promise<{ mood: string; confidence: number; originalEmotion?: string }> => {
     try {
       console.log('🔍 ========== analyzeMood() CALLED ==========');
       console.log('🔍 Video ref exists?', !!videoRef.current);
@@ -384,7 +389,11 @@ const AIMode: React.FC = () => {
       const moodResult = mapEmotionToMood(selectedEmotion, selectedConfidence);
       console.log('✅ Mapped to mood:', moodResult.mood, 'confidence:', moodResult.confidence.toFixed(3));
       
-      return moodResult;
+      // Return both the backend mood and the original emotion for display
+      return {
+        ...moodResult,
+        originalEmotion: selectedEmotion, // Store original emotion for display on Player page
+      };
     } catch (error: any) {
       console.error('❌ Error in mood analysis:', error);
       const errorMessage = error?.message || 'Failed to detect mood from facial expression';
@@ -463,17 +472,20 @@ const AIMode: React.FC = () => {
             }
             
             // Now set mood state after camera is stopped
-            setMood(result.mood);
+            // Use original emotion for display if available, otherwise use mapped mood
+            const displayMood = result.originalEmotion || result.mood;
+            setMood(displayMood); // Store original emotion for display
             setConfidence(result.confidence);
-            currentMoodRef.current = result.mood; // Update ref immediately
+            currentMoodRef.current = displayMood; // Store original emotion in ref for stopDetection
             setMoodChangeCount(prev => prev + 1); // Track mood detection
-            console.log('✅ Mood state set to:', result.mood);
+            console.log('✅ Mood state set to:', displayMood, '(original emotion)');
+            console.log('✅ Backend mood for API:', result.mood);
             
             // Fetch music for initial mood detection and auto-navigate to player on first success
             const shouldNavigate = !hasNavigatedRef.current;
             console.log('🚀 Triggering initial music fetch for:', result.mood, 'Auto-navigate?', shouldNavigate);
-            lastFetchedMoodRef.current = result.mood;
-            fetchMusicFromSpotify(result.mood, shouldNavigate);
+            lastFetchedMoodRef.current = displayMood;
+            fetchMusicFromSpotify(result.mood, shouldNavigate, displayMood);
           } else {
             console.error('❌ Initial detection returned invalid result:', result);
             
@@ -606,7 +618,7 @@ const AIMode: React.FC = () => {
   };
 
   // Fetch music from Spotify based on detected mood and auto-navigate
-  const fetchMusicFromSpotify = async (detectedMood: string, shouldAutoNavigate: boolean = true) => {
+  const fetchMusicFromSpotify = async (detectedMood: string, shouldAutoNavigate: boolean = true, displayMood?: string) => {
     // Validate mood
     if (!detectedMood || detectedMood.trim() === '') {
       console.error('❌ Invalid mood provided:', detectedMood);
@@ -622,6 +634,9 @@ const AIMode: React.FC = () => {
       return;
     }
 
+    // Use displayMood for navigation if provided, otherwise use detectedMood
+    const moodForDisplay = displayMood || detectedMood;
+
     try {
       setIsFetchingMusic(true);
       setTracksFetched(false);
@@ -631,7 +646,7 @@ const AIMode: React.FC = () => {
       setFetchedTracksCount(response.data.tracks.length);
       setTracksFetched(true);
       
-      toast.success(`Found ${response.data.tracks.length} tracks for ${detectedMood} mood! 🎵`, {
+      toast.success(`Found ${response.data.tracks.length} tracks for ${moodForDisplay} mood! 🎵`, {
         position: 'top-right',
         autoClose: 2000,
       });
@@ -658,7 +673,7 @@ const AIMode: React.FC = () => {
             videoRef.current.srcObject = null;
           }
           
-          navigate(`/player?mood=${detectedMood}`);
+          navigate(`/player?mood=${moodForDisplay}`);
         }, 1500); // 1.5 second delay to show success message
       } else if (shouldAutoNavigate && hasNavigatedRef.current) {
       }
@@ -692,6 +707,42 @@ const AIMode: React.FC = () => {
     } finally {
       setIsFetchingMusic(false);
     }
+  };
+
+  // Handle manual mood selection
+  const handleManualMoodSelection = async (selectedMood: string) => {
+    // Stop any ongoing camera detection
+    if (isDetecting) {
+      setShowCamera(false);
+      isDetectingRef.current = false;
+      setIsDetecting(false);
+      
+      if (detectionIntervalRef.current) {
+        clearInterval(detectionIntervalRef.current);
+        detectionIntervalRef.current = null;
+      }
+      
+      if (videoRef.current?.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
+    }
+    
+    // Set the selected mood (keep original emotion for display)
+    setMood(selectedMood);
+    setConfidence(1.0); // Manual selection has 100% confidence
+    currentMoodRef.current = selectedMood;
+    setMoodChangeCount(prev => prev + 1);
+    
+    // Map to backend-supported mood for API call
+    const backendMood = mapEmotionToBackendMood(selectedMood);
+    
+    // Fetch music and navigate to player
+    // Pass selectedMood as displayMood so the original emotion mood appears on Player page
+    hasNavigatedRef.current = false;
+    lastFetchedMoodRef.current = selectedMood;
+    await fetchMusicFromSpotify(backendMood, true, selectedMood);
   };
 
   // Stop detection and navigate to player
@@ -775,8 +826,13 @@ const AIMode: React.FC = () => {
       case 'happy': return '😊';
       case 'sad': return '😢';
       case 'excited': return '🎉';
+      case 'surprised': return '😲';
       case 'relaxed': return '😌';
+      case 'neutral': return '😐';
       case 'focused': return '🤔';
+      case 'angry': return '😠';
+      case 'fearful': return '😨';
+      case 'disgusted': return '🤢';
       default: return '😐';
     }
   };
@@ -786,9 +842,38 @@ const AIMode: React.FC = () => {
       case 'happy': return '#10B981'; // green
       case 'sad': return '#3B82F6'; // blue
       case 'excited': return '#EC4899'; // pink
+      case 'surprised': return '#F59E0B'; // amber/orange
       case 'relaxed': return '#8B5CF6'; // purple
+      case 'neutral': return '#6B7280'; // gray
       case 'focused': return '#F59E0B'; // amber
+      case 'angry': return '#EF4444'; // red
+      case 'fearful': return '#8B5CF6'; // purple (similar to relaxed)
+      case 'disgusted': return '#84CC16'; // lime green
       default: return '#6B7280'; // gray
+    }
+  };
+
+  // Map emotion moods to backend-supported moods for API calls
+  const mapEmotionToBackendMood = (emotionMood: string): string => {
+    // Backend supports: happy, sad, excited, relaxed, focused
+    switch (emotionMood) {
+      case 'happy':
+        return 'happy';
+      case 'sad':
+        return 'sad';
+      case 'excited':
+      case 'surprised':
+        return 'excited';
+      case 'relaxed':
+      case 'neutral':
+        return 'relaxed';
+      case 'focused':
+      case 'angry':
+      case 'fearful':
+      case 'disgusted':
+        return 'focused';
+      default:
+        return 'relaxed';
     }
   };
 
@@ -812,9 +897,127 @@ const AIMode: React.FC = () => {
             AI Mood Detection
           </h1>
           <p className="text-sm sm:text-base text-white/70 max-w-2xl mx-auto">
-            Let our AI analyze your facial expression to recommend the perfect music
+            Let our AI analyze your facial expression to recommend the perfect music, or select your mood manually
           </p>
         </div>
+
+        {/* Mode Selection Toggle */}
+        <div className="flex justify-center mb-6 sm:mb-8">
+          <div className="inline-flex rounded-full bg-white/5 border border-white/10 p-1">
+            <button
+              onClick={() => {
+                setSelectionMode('camera');
+                setError(null);
+                // Stop camera if switching away
+                if (isDetecting) {
+                  setShowCamera(false);
+                  isDetectingRef.current = false;
+                  setIsDetecting(false);
+                  if (videoRef.current?.srcObject) {
+                    const stream = videoRef.current.srcObject as MediaStream;
+                    stream.getTracks().forEach(track => track.stop());
+                    videoRef.current.srcObject = null;
+                  }
+                }
+              }}
+              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-full font-semibold text-xs sm:text-sm transition-all duration-200 ${
+                selectionMode === 'camera'
+                  ? 'bg-[#1DB954] text-white'
+                  : 'text-white/60 hover:text-white/80'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Camera Detection
+              </span>
+            </button>
+            <button
+              onClick={() => {
+                setSelectionMode('manual');
+                setError(null);
+                // Stop camera if switching away
+                if (isDetecting) {
+                  setShowCamera(false);
+                  isDetectingRef.current = false;
+                  setIsDetecting(false);
+                  if (videoRef.current?.srcObject) {
+                    const stream = videoRef.current.srcObject as MediaStream;
+                    stream.getTracks().forEach(track => track.stop());
+                    videoRef.current.srcObject = null;
+                  }
+                }
+              }}
+              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-full font-semibold text-xs sm:text-sm transition-all duration-200 ${
+                selectionMode === 'manual'
+                  ? 'bg-[#1DB954] text-white'
+                  : 'text-white/60 hover:text-white/80'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                Manual Selection
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Manual Mood Selection */}
+        {selectionMode === 'manual' && (
+          <div className="mb-6 sm:mb-8">
+            <div className="rounded-xl sm:rounded-2xl p-6 sm:p-8 bg-white/5 border border-white/10">
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6 text-center">
+                Select Your Mood
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+                {[
+                  { mood: 'happy', emoji: '😊', color: '#10B981', label: 'Happy' },
+                  { mood: 'sad', emoji: '😢', color: '#3B82F6', label: 'Sad' },
+                  { mood: 'excited', emoji: '🎉', color: '#EC4899', label: 'Excited' },
+                  { mood: 'surprised', emoji: '😲', color: '#F59E0B', label: 'Surprised' },
+                  { mood: 'relaxed', emoji: '😌', color: '#8B5CF6', label: 'Relaxed' },
+                  { mood: 'neutral', emoji: '😐', color: '#6B7280', label: 'Neutral' },
+                  { mood: 'focused', emoji: '🤔', color: '#F59E0B', label: 'Focused' },
+                  { mood: 'angry', emoji: '😠', color: '#EF4444', label: 'Angry' },
+                  { mood: 'fearful', emoji: '😨', color: '#8B5CF6', label: 'Fearful' },
+                  { mood: 'disgusted', emoji: '🤢', color: '#84CC16', label: 'Disgusted' },
+                ].map(({ mood: moodValue, emoji, color, label }) => (
+                  <button
+                    key={moodValue}
+                    onClick={() => handleManualMoodSelection(moodValue)}
+                    disabled={isFetchingMusic}
+                    className="group relative rounded-xl sm:rounded-2xl p-4 sm:p-6 bg-white/5 border border-white/10 hover:border-white/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
+                    style={{
+                      borderColor: mood === moodValue ? color : undefined,
+                      boxShadow: mood === moodValue ? `0 0 20px ${color}40` : undefined,
+                    }}
+                  >
+                    <div className="text-4xl sm:text-5xl md:text-6xl mb-2 sm:mb-3">{emoji}</div>
+                    <div className="text-white font-semibold text-xs sm:text-sm">{label}</div>
+                    {isFetchingMusic && mood === moodValue && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-xl sm:rounded-2xl">
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {mood && selectionMode === 'manual' && (
+                <div className="mt-4 sm:mt-6 text-center">
+                  <p className="text-white/60 text-xs sm:text-sm">
+                    Selected: <span className="font-semibold text-white capitalize">{mood}</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {error ? (
           <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 sm:p-6 text-center mb-6">
@@ -822,7 +1025,8 @@ const AIMode: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-6 sm:space-y-8">
-            {/* Video Preview */}
+            {/* Video Preview - Only show in camera mode */}
+            {selectionMode === 'camera' && (
             <div className="relative rounded-xl sm:rounded-2xl overflow-hidden bg-white/5 border border-white/10"
             >
               <div className="relative">
@@ -860,6 +1064,7 @@ const AIMode: React.FC = () => {
                 )}
               </div>
             </div>
+            )}
 
             {/* Mood Display - Always show if detecting or if mood is set */}
             {(mood || isDetecting) && (
@@ -968,9 +1173,16 @@ const AIMode: React.FC = () => {
                   </div>
                 )}
                 
-                <p className="text-xs sm:text-sm text-white/40 mt-4 sm:mt-6 relative z-10">
-                  Mood is being detected continuously. Click "Stop Detection" to go to the player with your current mood.
-                </p>
+                {selectionMode === 'camera' && (
+                  <p className="text-xs sm:text-sm text-white/40 mt-4 sm:mt-6 relative z-10">
+                    Mood is being detected continuously. Click "Stop Detection" to go to the player with your current mood.
+                  </p>
+                )}
+                {selectionMode === 'manual' && mood && (
+                  <p className="text-xs sm:text-sm text-white/40 mt-4 sm:mt-6 relative z-10">
+                    Music is being fetched for your selected mood. You'll be redirected to the player shortly.
+                  </p>
+                )}
               </div>
             )}
 
@@ -997,7 +1209,8 @@ const AIMode: React.FC = () => {
               </div>
             )} */}
 
-            {/* Controls */}
+            {/* Controls - Only show in camera mode */}
+            {selectionMode === 'camera' && (
             <div className="flex flex-col gap-4 sm:gap-6 items-center">
               <div className="flex gap-3 sm:gap-4 justify-center">
                 {!isDetecting ? (
@@ -1043,6 +1256,7 @@ const AIMode: React.FC = () => {
                 )}
               </div>
             </div>
+            )}
 
             {/* Instructions */}
             <div className="rounded-xl sm:rounded-2xl p-4 sm:p-6 bg-white/5 border border-white/10"
@@ -1053,28 +1267,49 @@ const AIMode: React.FC = () => {
                 </svg>
                 Instructions
               </h3>
-              <ul className="text-white/60 space-y-2 sm:space-y-3 text-xs sm:text-sm">
-                <li className="flex items-start gap-2 sm:gap-3">
-                  <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
-                  <span>Make sure you have good lighting</span>
-                </li>
-                <li className="flex items-start gap-2 sm:gap-3">
-                  <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
-                  <span>Position your face clearly in front of the camera</span>
-                </li>
-                <li className="flex items-start gap-2 sm:gap-3">
-                  <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
-                  <span>Allow camera permissions when prompted</span>
-                </li>
-                <li className="flex items-start gap-2 sm:gap-3">
-                  <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
-                  <span>The AI will analyze your facial expression to detect your mood</span>
-                </li>
-                <li className="flex items-start gap-2 sm:gap-3">
-                  <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
-                  <span>Once detected, you can start music based on your mood</span>
-                </li>
-              </ul>
+              {selectionMode === 'camera' ? (
+                <ul className="text-white/60 space-y-2 sm:space-y-3 text-xs sm:text-sm">
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>Make sure you have good lighting</span>
+                  </li>
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>Position your face clearly in front of the camera</span>
+                  </li>
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>Allow camera permissions when prompted</span>
+                  </li>
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>The AI will analyze your facial expression to detect your mood</span>
+                  </li>
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>Once detected, you can start music based on your mood</span>
+                  </li>
+                </ul>
+              ) : (
+                <ul className="text-white/60 space-y-2 sm:space-y-3 text-xs sm:text-sm">
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>Select the mood that best matches how you're feeling</span>
+                  </li>
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>Click on any mood card to start fetching music</span>
+                  </li>
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>You'll be automatically redirected to the player page</span>
+                  </li>
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>You can switch back to camera detection mode anytime</span>
+                  </li>
+                </ul>
+              )}
             </div>
           </div>
         )}

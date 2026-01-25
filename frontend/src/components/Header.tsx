@@ -31,13 +31,7 @@ const Header: React.FC<HeaderProps> = ({ onCtaClick, onSignInClick, onSignUpClic
     setMobileMenuOpen(false);
   };
 
-  const navItems = [
-    { label: 'Home', href: '#home' },
-    { label: 'About', href: '#about' },
-    { label: 'Features', href: '#features' },
-    { label: 'Contact Us', href: '#contact' },
-    { label: 'Blog', href: '#blog' }
-  ];
+  const navItems: Array<{ label: string; href: string }> = [];
 
   return (
     <header className="w-full bg-transparent absolute top-0 left-0 right-0 z-50">

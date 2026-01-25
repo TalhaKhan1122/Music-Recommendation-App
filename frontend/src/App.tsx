@@ -1,19 +1,22 @@
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
-import { HomePage, Dashboard, AIMode, Player, Artists, ArtistDetail, StationDetail, AuthCallback, NotFound } from './pages';
+import { HomePage, Dashboard, AIMode, Player, Artists, ArtistDetail, StationDetail, AuthCallback, NotFound, ForgotPassword, ResetPassword } from './pages';
 import { ProtectedRoute, GlobalSpotifyPlayer, GlobalHeader } from './components';
 import { SpotifyPlayerProvider, FollowedArtistsProvider } from './context';
 
 function AppContent() {
   const location = useLocation();
   const isHomePage = location.pathname === '/';
+  const isAuthPage = location.pathname === '/forgot-password' || location.pathname === '/reset-password';
 
   return (
     <>
-      {!isHomePage && <GlobalHeader />}
+      {!isHomePage && !isAuthPage && <GlobalHeader />}
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route 
           path="/dashboard" 
           element={

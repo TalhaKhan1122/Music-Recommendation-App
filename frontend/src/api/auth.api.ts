@@ -126,6 +126,98 @@ export const login = async (data: LoginData): Promise<AuthResponse> => {
 /**
  * Get current user (requires authentication)
  */
+export interface ForgotPasswordData {
+  email: string;
+}
+
+export interface ResetPasswordData {
+  token: string;
+  password: string;
+  confirmPassword: string;
+}
+
+/**
+ * Request password reset
+ */
+export const forgotPassword = async (data: ForgotPasswordData): Promise<{ success: boolean; message: string; resetLink?: string }> => {
+  try {
+    console.log('📧 Requesting password reset...', { email: data.email, API_BASE_URL });
+    
+    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    console.log('📥 Forgot password response status:', response.status, response.statusText);
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('❌ Non-JSON response:', text);
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log('📥 Forgot password response data:', result);
+    
+    if (!response.ok) {
+      throw new Error(result.message || 'Failed to send password reset email');
+    }
+
+    return result;
+  } catch (error: any) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error('🌐 Network error - Is the backend server running?');
+      throw new Error('Cannot connect to server. Please make sure the backend is running on http://localhost:5000');
+    }
+    throw error;
+  }
+};
+
+/**
+ * Reset password with token
+ */
+export const resetPassword = async (data: ResetPasswordData): Promise<AuthResponse> => {
+  try {
+    console.log('🔐 Resetting password...', { API_BASE_URL });
+    
+    const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    console.log('📥 Reset password response status:', response.status, response.statusText);
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('❌ Non-JSON response:', text);
+      throw new Error(`Server error: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log('📥 Reset password response data:', result);
+    
+    if (!response.ok) {
+      throw new Error(result.message || 'Failed to reset password');
+    }
+
+    return result;
+  } catch (error: any) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error('🌐 Network error - Is the backend server running?');
+      throw new Error('Cannot connect to server. Please make sure the backend is running on http://localhost:5000');
+    }
+    throw error;
+  }
+};
+
 export const getCurrentUser = async (): Promise<{ success: boolean; data: { user: User } }> => {
   const token = localStorage.getItem('token');
 

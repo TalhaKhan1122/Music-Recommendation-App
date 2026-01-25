@@ -36,6 +36,30 @@ const Player: React.FC = () => {
   const actionMenuRef = useRef<HTMLDivElement | null>(null);
   const fetchedMoodRef = useRef<string | null>(null); // Track which mood we've already fetched
 
+  // Map emotion moods to backend-supported moods for API calls
+  // Backend supports: happy, sad, excited, relaxed, focused
+  const mapEmotionToBackendMood = (emotionMood: string): string => {
+    switch (emotionMood.toLowerCase()) {
+      case 'happy':
+        return 'happy';
+      case 'sad':
+        return 'sad';
+      case 'excited':
+      case 'surprised':
+        return 'excited';
+      case 'relaxed':
+      case 'neutral':
+        return 'relaxed';
+      case 'focused':
+      case 'angry':
+      case 'fearful':
+      case 'disgusted':
+        return 'focused';
+      default:
+        return 'relaxed';
+    }
+  };
+
   // Stub functions for playlist and favorite track management
   const openPlaylistModal = () => {
     toast.info('Playlist management feature coming soon!', {
@@ -82,7 +106,11 @@ const Player: React.FC = () => {
       fetchedMoodRef.current = mood; // Mark this mood as fetched
       setIsLoading(true);
       
-      const response = await getTracksByMood(mood, 7, 'recommendations', 'spotify');
+      // Map emotion mood to backend-supported mood for API call
+      const backendMood = mapEmotionToBackendMood(mood);
+      console.log(`🎵 Display mood: ${mood}, Backend mood: ${backendMood}`);
+      
+      const response = await getTracksByMood(backendMood, 7, 'recommendations', 'spotify');
       console.log('✅ Tracks fetched successfully:', response.data.tracks.length);
       
       setTracks(response.data.tracks);
@@ -426,20 +454,30 @@ const Player: React.FC = () => {
       case 'happy': return 'from-green-500/20 via-emerald-500/20 to-teal-500/20';
       case 'sad': return 'from-blue-500/20 via-indigo-500/20 to-purple-500/20';
       case 'excited': return 'from-pink-500/20 via-rose-500/20 to-red-500/20';
+      case 'surprised': return 'from-amber-500/20 via-orange-500/20 to-yellow-500/20';
       case 'relaxed': return 'from-purple-500/20 via-violet-500/20 to-fuchsia-500/20';
+      case 'neutral': return 'from-gray-500/20 via-slate-500/20 to-zinc-500/20';
       case 'focused': return 'from-amber-500/20 via-orange-500/20 to-yellow-500/20';
+      case 'angry': return 'from-red-500/20 via-rose-500/20 to-pink-500/20';
+      case 'fearful': return 'from-purple-500/20 via-indigo-500/20 to-blue-500/20';
+      case 'disgusted': return 'from-lime-500/20 via-green-500/20 to-emerald-500/20';
       default: return 'from-gray-500/20 via-slate-500/20 to-zinc-500/20';
     }
   };
 
   const getMoodColor = (mood: string) => {
     switch (mood) {
-      case 'happy': return '#10B981';
-      case 'sad': return '#3B82F6';
-      case 'excited': return '#EC4899';
-      case 'relaxed': return '#8B5CF6';
-      case 'focused': return '#F59E0B';
-      default: return '#6B7280';
+      case 'happy': return '#10B981'; // green
+      case 'sad': return '#3B82F6'; // blue
+      case 'excited': return '#EC4899'; // pink
+      case 'surprised': return '#F59E0B'; // amber/orange
+      case 'relaxed': return '#8B5CF6'; // purple
+      case 'neutral': return '#6B7280'; // gray
+      case 'focused': return '#F59E0B'; // amber
+      case 'angry': return '#EF4444'; // red
+      case 'fearful': return '#8B5CF6'; // purple (similar to relaxed)
+      case 'disgusted': return '#84CC16'; // lime green
+      default: return '#6B7280'; // gray
     }
   };
 
@@ -448,8 +486,13 @@ const Player: React.FC = () => {
       case 'happy': return '😊';
       case 'sad': return '😢';
       case 'excited': return '🎉';
+      case 'surprised': return '😲';
       case 'relaxed': return '😌';
+      case 'neutral': return '😐';
       case 'focused': return '🤔';
+      case 'angry': return '😠';
+      case 'fearful': return '😨';
+      case 'disgusted': return '🤢';
       default: return '😐';
     }
   };

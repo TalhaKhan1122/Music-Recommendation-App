@@ -31,6 +31,7 @@ export const authenticate = async (
       });
       return;
     }
+    
 
     // Extract token
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
@@ -60,7 +61,7 @@ export const authenticate = async (
 
       // Attach user to request object
       req.user = {
-        id: user._id.toString(),
+        id: user?._id.toString(),
         email: user.email,
       };
 

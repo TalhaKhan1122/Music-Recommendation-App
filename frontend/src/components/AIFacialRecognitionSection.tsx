@@ -1,4 +1,8 @@
 import React from 'react';
+// TODO: Add your image file (person with headphones and tablet) to frontend/src/assets/ folder
+// and update the import below. For now using a placeholder image.
+// Replace this import with: import personHeadphonesTabletImage from '../assets/your-image-filename.png';
+import personHeadphonesTabletImage from '../assets/user-listnening -music (3).png';
 
 const AIFacialRecognitionSection: React.FC = () => {
   return (
@@ -8,32 +12,13 @@ const AIFacialRecognitionSection: React.FC = () => {
           {/* Left side - Illustration */}
           <div className="relative w-full flex items-center justify-center lg:justify-start order-2 lg:order-1">
             <div className="relative w-full max-w-lg">
-              {/* AI Face Recognition illustration */}
-              <div className="bg-gradient-to-br from-[#1a1a2e] to-[#2d1b3d] rounded-2xl p-8 border border-gray-700">
-                <div className="relative">
-                  {/* Face outline */}
-                  <div className="w-64 h-64 mx-auto rounded-full border-4 border-purple-500/50 flex items-center justify-center relative">
-                    <div className="w-48 h-48 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
-                      {/* Eyes */}
-                      <div className="absolute top-16 left-12 w-8 h-8 bg-purple-400 rounded-full"></div>
-                      <div className="absolute top-16 right-12 w-8 h-8 bg-purple-400 rounded-full"></div>
-                      {/* Smile */}
-                      <svg className="absolute bottom-16 left-1/2 -translate-x-1/2" width="64" height="32" viewBox="0 0 64 32">
-                        <path d="M8 16 Q32 32 56 16" stroke="#A855F7" strokeWidth="3" fill="none" strokeLinecap="round"/>
-                      </svg>
-                    </div>
-                  </div>
-                  
-                  {/* AI indicators */}
-                  <div className="absolute top-4 right-4 bg-purple-500/20 rounded-lg px-3 py-1 border border-purple-500/50">
-                    <span className="text-purple-300 text-xs font-medium">AI Analyzing</span>
-                  </div>
-                  
-                  {/* Mood indicator */}
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-pink-500/20 rounded-lg px-4 py-2 border border-pink-500/50">
-                    <span className="text-pink-300 text-sm font-medium">Mood: Happy</span>
-                  </div>
-                </div>
+              {/* Person with headphones and tablet image */}
+              <div>
+                <img
+                  src={personHeadphonesTabletImage}
+                  alt="Person using AI facial recognition with headphones and tablet"
+                  className="w-full h-auto rounded-lg object-contain"
+                />
               </div>
             </div>
           </div>

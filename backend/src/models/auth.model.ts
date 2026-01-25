@@ -7,9 +7,12 @@ export interface IUser extends Document {
   googleId?: string;
   name?: string;
   picture?: string;
+  resetPasswordToken?: string;
+  resetPasswordExpire?: Date;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
+  getResetPasswordToken(): string;
 }
 
 const UserSchema: Schema = new Schema(
@@ -40,6 +43,12 @@ const UserSchema: Schema = new Schema(
     },
     picture: {
       type: String,
+    },
+    resetPasswordToken: {
+      type: String,
+    },
+    resetPasswordExpire: {
+      type: Date,
     },
   },
   {
@@ -73,6 +82,23 @@ UserSchema.methods.comparePassword = async function (
     return false;
   }
   return bcrypt.compare(candidatePassword, this.password);
+};
+
+// Generate and hash password reset token
+UserSchema.methods.getResetPasswordToken = function (): string {
+  // Generate token
+  const resetToken = require('crypto').randomBytes(20).toString('hex');
+
+  // Hash token and set to resetPasswordToken field
+  this.resetPasswordToken = require('crypto')
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+
+  // Set expire (10 minutes)
+  this.resetPasswordExpire = new Date(Date.now() + 10 * 60 * 1000);
+
+  return resetToken;
 };
 
 // Create and export the model

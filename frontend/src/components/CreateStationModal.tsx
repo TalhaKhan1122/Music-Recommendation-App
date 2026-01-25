@@ -18,31 +18,45 @@ const CreateStationModal: React.FC<CreateStationModalProps> = ({ isOpen, onClose
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [displayLimit, setDisplayLimit] = useState(20); // Initial number of artists to show
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [currentSearchLimit, setCurrentSearchLimit] = useState(20); // Current limit for search API calls
+  const [currentPopularLimit, setCurrentPopularLimit] = useState(10); // Current limit per category for popular artists
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const SEARCH_DEBOUNCE_MS = 800;
+  const INITIAL_DISPLAY_LIMIT = 20;
+  const LOAD_MORE_INCREMENT = 20;
+  const INITIAL_POPULAR_LIMIT = 10; // Initial artists per category
+  const POPULAR_LIMIT_INCREMENT = 10; // How many more to fetch per category
 
   useEffect(() => {
     if (isOpen) {
+      setCurrentPopularLimit(INITIAL_POPULAR_LIMIT);
       loadAvailableArtists();
       setSelectedArtists([]);
       setSearchQuery('');
       setSearchResults([]);
+      setDisplayLimit(INITIAL_DISPLAY_LIMIT);
     }
   }, [isOpen]);
 
-  const loadAvailableArtists = async () => {
-    setIsLoading(true);
+  const loadAvailableArtists = async (limitPerCategory?: number, showLoading: boolean = true) => {
+    if (showLoading) {
+      setIsLoading(true);
+    }
     try {
-      // Get followed artists
-      const followedList = Object.values(followedArtists).map(artist => ({
-        id: artist.artistId || artist.id || '',
-        name: artist.name || 'Unknown',
-        image: artist.image,
-      })).filter(a => a.id);
+      // Get followed artists (only on initial load)
+      const followedList = limitPerCategory === undefined 
+        ? Object.values(followedArtists).map(artist => ({
+            id: artist.artistId || artist.id || '',
+            name: artist.name || 'Unknown',
+            image: artist.image,
+          })).filter(a => a.id)
+        : [];
 
       // Get popular artists from all categories
       const payload = await getTopArtistsShowcase({
-        limitPerCategory: 10,
+        limitPerCategory: limitPerCategory || currentPopularLimit,
         topTrackLimit: 0,
       });
 
@@ -59,25 +73,39 @@ const CreateStationModal: React.FC<CreateStationModalProps> = ({ isOpen, onClose
         });
       });
 
-      // Combine followed and popular artists, remove duplicates
-      const allArtists = [...followedList];
-      popularArtists.forEach(artist => {
-        if (!allArtists.find(a => a.id === artist.id)) {
-          allArtists.push(artist);
-        }
-      });
-
-      setAvailableArtists(allArtists);
+      if (limitPerCategory === undefined) {
+        // Initial load: Combine followed and popular artists, remove duplicates
+        const allArtists = [...followedList];
+        popularArtists.forEach(artist => {
+          if (!allArtists.find(a => a.id === artist.id)) {
+            allArtists.push(artist);
+          }
+        });
+        setAvailableArtists(allArtists);
+      } else {
+        // Loading more: Append new popular artists to existing list, remove duplicates
+        setAvailableArtists(prev => {
+          const existingIds = new Set(prev.map(a => a.id));
+          const uniqueNewArtists = popularArtists.filter(a => !existingIds.has(a.id));
+          return [...prev, ...uniqueNewArtists];
+        });
+      }
     } catch (error: any) {
       console.error('Error loading artists:', error);
       toast.error('Failed to load artists');
     } finally {
-      setIsLoading(false);
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
   };
 
   // Debounced Spotify search
   useEffect(() => {
+    // Reset display limit and search limit when search changes
+    setDisplayLimit(INITIAL_DISPLAY_LIMIT);
+    setCurrentSearchLimit(INITIAL_DISPLAY_LIMIT);
+    
     // Clear previous timeout
     if (searchDebounceRef.current) {
       clearTimeout(searchDebounceRef.current);
@@ -97,7 +125,7 @@ const CreateStationModal: React.FC<CreateStationModalProps> = ({ isOpen, onClose
     searchDebounceRef.current = setTimeout(async () => {
       try {
         const results = await searchSpotifyCatalog(searchQuery.trim(), {
-          artistLimit: 20,
+          artistLimit: INITIAL_DISPLAY_LIMIT, // Start with initial limit
           trackLimit: 0, // We only need artists
         });
 
@@ -137,6 +165,16 @@ const CreateStationModal: React.FC<CreateStationModalProps> = ({ isOpen, onClose
   const uniqueArtists = displayArtists.filter((artist, index, self) =>
     index === self.findIndex(a => a.id === artist.id)
   );
+  
+  // Get artists to display (limited by displayLimit)
+  const displayedArtists = uniqueArtists.slice(0, displayLimit);
+  
+  // Determine if there are more artists to load
+  // For search: check if we got the full amount requested (might be more available)
+  // For available artists: always allow loading more from Spotify (we can always fetch more popular artists)
+  const hasMoreArtists = searchQuery.trim() 
+    ? (searchResults.length >= currentSearchLimit && searchResults.length > 0 && displayedArtists.length < searchResults.length) // If we got full limit and haven't shown all, there might be more
+    : true; // For available artists, always allow fetching more popular artists from Spotify
 
   const toggleArtistSelection = (artist: { id: string; name: string; image?: string }) => {
     setSelectedArtists(prev => {
@@ -151,6 +189,53 @@ const CreateStationModal: React.FC<CreateStationModalProps> = ({ isOpen, onClose
         return [...prev, artist];
       }
     });
+  };
+
+  const handleLoadMore = async () => {
+    if (isLoadingMore) return;
+    
+    setIsLoadingMore(true);
+    
+    try {
+      if (searchQuery.trim()) {
+        // Fetch more search results from Spotify
+        const newLimit = currentSearchLimit + LOAD_MORE_INCREMENT;
+        setCurrentSearchLimit(newLimit);
+        
+        const results = await searchSpotifyCatalog(searchQuery.trim(), {
+          artistLimit: newLimit,
+          trackLimit: 0,
+        });
+
+        // Convert search results to our format
+        const newArtists = results.artists.map(artist => ({
+          id: artist.id,
+          name: artist.name || 'Unknown',
+          image: artist.image,
+        }));
+
+        // Update search results with all artists from the new fetch
+        setSearchResults(newArtists);
+        
+        // Also increase display limit to show more
+        setDisplayLimit(prev => Math.min(prev + LOAD_MORE_INCREMENT, newArtists.length));
+      } else {
+        // Fetch more popular artists from Spotify
+        const newLimit = currentPopularLimit + POPULAR_LIMIT_INCREMENT;
+        setCurrentPopularLimit(newLimit);
+        
+        // Fetch more popular artists from Spotify (don't show main loading spinner)
+        await loadAvailableArtists(newLimit, false);
+        
+        // Increase display limit to show more
+        setDisplayLimit(prev => prev + LOAD_MORE_INCREMENT);
+      }
+    } catch (error: any) {
+      console.error('Error loading more artists:', error);
+      toast.error('Failed to load more artists. Please try again.');
+    } finally {
+      setIsLoadingMore(false);
+    }
   };
 
   const handleCreate = () => {
@@ -179,7 +264,7 @@ const CreateStationModal: React.FC<CreateStationModalProps> = ({ isOpen, onClose
       
       {/* Modal */}
       <div 
-        className="relative bg-gray-900 rounded-lg shadow-2xl w-full max-w-2xl p-5 sm:p-6 md:p-8 my-auto max-h-[90vh] overflow-hidden flex flex-col"
+        className="relative bg-gray-900 rounded-lg shadow-2xl w-full max-w-5xl p-5 sm:p-6 md:p-8 my-auto max-h-[70vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -286,15 +371,15 @@ const CreateStationModal: React.FC<CreateStationModalProps> = ({ isOpen, onClose
                   </p>
                 </div>
               )}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {uniqueArtists.map((artist) => {
+              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-2">
+                {displayedArtists.map((artist) => {
                   const isSelected = selectedArtists.some(a => a.id === artist.id);
                   return (
                     <button
                       key={artist.id}
                       type="button"
                       onClick={() => toggleArtistSelection(artist)}
-                      className={`relative overflow-hidden rounded-lg aspect-square p-3 text-left transition-all ${
+                      className={`relative overflow-hidden rounded-lg aspect-square p-1.5 text-left transition-all ${
                         isSelected
                           ? 'ring-2 ring-purple-500 bg-purple-500/20'
                           : 'bg-gray-800/50 hover:bg-gray-800 border border-gray-700 hover:border-gray-600'
@@ -304,19 +389,19 @@ const CreateStationModal: React.FC<CreateStationModalProps> = ({ isOpen, onClose
                         <img
                           src={artist.image}
                           alt={artist.name}
-                          className="w-full h-full object-cover rounded-lg mb-2"
+                          className="w-full h-full object-cover rounded-lg mb-1"
                         />
                       ) : (
-                        <div className="w-full h-full rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center mb-2">
-                          <span className="text-2xl font-bold text-white">
+                        <div className="w-full h-full rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center mb-1">
+                          <span className="text-sm font-bold text-white">
                             {artist.name.charAt(0).toUpperCase()}
                           </span>
                         </div>
                       )}
-                      <p className="text-xs sm:text-sm font-medium text-white truncate">{artist.name}</p>
+                      <p className="text-[10px] xs:text-xs font-medium text-white truncate leading-tight">{artist.name}</p>
                       {isSelected && (
-                        <div className="absolute top-2 right-2 bg-purple-500 rounded-full p-1">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                        <div className="absolute top-1 right-1 bg-purple-500 rounded-full p-0.5">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
                             <polyline points="20 6 9 17 4 12"></polyline>
                           </svg>
                         </div>
@@ -325,6 +410,30 @@ const CreateStationModal: React.FC<CreateStationModalProps> = ({ isOpen, onClose
                   );
                 })}
               </div>
+              
+              {/* Load More Button */}
+              {hasMoreArtists && (
+                <div className="flex justify-center mt-4">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={isLoadingMore}
+                    className="px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/50 rounded-lg text-purple-300 hover:text-white transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isLoadingMore ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-purple-300"></div>
+                        <span>Loading from Spotify...</span>
+                      </>
+                    ) : (
+                      <span>
+                        {searchQuery.trim() 
+                          ? `Load More Artists from Spotify` 
+                          : `Load More Popular Artists from Spotify`}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
