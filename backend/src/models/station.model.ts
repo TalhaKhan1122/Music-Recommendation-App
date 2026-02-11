@@ -72,6 +72,8 @@ const StationSchema = new Schema<IStation>(
 );
 
 StationSchema.index({ user: 1, createdAt: -1 });
+// Unique index to prevent duplicate station names for the same user
+StationSchema.index({ user: 1, name: 1 }, { unique: true });
 
 const Station = model<IStation>('Station', StationSchema);
 

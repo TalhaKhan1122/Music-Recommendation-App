@@ -136,6 +136,15 @@ const Artists: React.FC = () => {
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [hasSearchResults, setHasSearchResults] = useState<boolean>(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState<boolean>(false);
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => {
+    // Load search history from localStorage
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('searchHistory');
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
   const [popularTracks, setPopularTracks] = useState<Record<string, Track[]>>({
     punjabi: [],
     english: [],
@@ -505,6 +514,34 @@ const Artists: React.FC = () => {
 
     const stationName = artists.map(a => a.name).join(' & ');
     
+    // Helper function to check if two artist arrays are the same (by ID, regardless of order)
+    const areArtistsSame = (artists1: Array<{ id: string }>, artists2: Array<{ id: string }>): boolean => {
+      if (artists1.length !== artists2.length) return false;
+      const ids1 = artists1.map(a => a.id).sort();
+      const ids2 = artists2.map(a => a.id).sort();
+      return ids1.every((id, index) => id === ids2[index]);
+    };
+    
+    // Check if a station with the same name already exists
+    const duplicateByName = customStations.find(
+      station => station.name.toLowerCase().trim() === stationName.toLowerCase().trim()
+    );
+    
+    if (duplicateByName) {
+      toast.error('The station already exists');
+      return;
+    }
+    
+    // Check if a station with the same artists already exists (regardless of order)
+    const duplicateByArtists = customStations.find(
+      station => areArtistsSame(station.artists, artists)
+    );
+    
+    if (duplicateByArtists) {
+      toast.error('The station already exists');
+      return;
+    }
+    
     const colors = [
       '#FF6B35', '#FF4757', '#FF6348', '#FF8C42',
       '#E74C3C', '#FF6B9D', '#FF8E53', '#FF5252',
@@ -518,9 +555,14 @@ const Artists: React.FC = () => {
       toast.success(`Created station: ${stationName}`);
     } catch (error: any) {
       console.error('Error creating station:', error);
-      toast.error(error.message || 'Failed to create station');
+      // Check if error is due to duplicate station (409 status)
+      if (error.status === 409 || error.message?.includes('already exists')) {
+        toast.error('The station already exists');
+      } else {
+        toast.error(error.message || 'Failed to create station');
+      }
     }
-  }, []);
+  }, [customStations]);
 
   // Scroll functions
   const scrollStations = useCallback((direction: 'left' | 'right') => {
@@ -738,6 +780,7 @@ const Artists: React.FC = () => {
         setSearchResults(result);
         setHasSearchResults(true);
         lastExecutedSearchRef.current = normalized;
+        setShowSearchDropdown(true); // Show dropdown with results
       } catch (err: any) {
         const message = err?.message || 'Failed to search Spotify.';
         setSearchError(message);
@@ -783,19 +826,80 @@ const Artists: React.FC = () => {
     };
   }, []);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showSearchDropdown && !target.closest('.search-dropdown-container')) {
+        setShowSearchDropdown(false);
+      }
+    };
+
+    if (showSearchDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showSearchDropdown]);
+
+  // Save search to history
+  const saveToSearchHistory = useCallback((query: string) => {
+    if (!query.trim()) return;
+    const trimmedQuery = query.trim();
+    setSearchHistory((prev) => {
+      // Remove if exists, then add to beginning (most recent first)
+      const filtered = prev.filter((item) => item.toLowerCase() !== trimmedQuery.toLowerCase());
+      const updated = [trimmedQuery, ...filtered].slice(0, 15); // Keep last 15 searches
+      localStorage.setItem('searchHistory', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  // Remove from search history
+  const removeFromSearchHistory = useCallback((query: string) => {
+    setSearchHistory((prev) => {
+      const updated = prev.filter((item) => item !== query);
+      localStorage.setItem('searchHistory', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  // Clear all search history
+  const clearSearchHistory = useCallback(() => {
+    setSearchHistory([]);
+    localStorage.removeItem('searchHistory');
+  }, []);
+
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(event.target.value);
+    const value = event.target.value;
+    setSearchQuery(value);
+    setShowSearchDropdown(true);
   };
+
+  // Handle selecting a search suggestion
+  const handleSearchSuggestionClick = useCallback((query: string) => {
+    setSearchQuery(query);
+    setShowSearchDropdown(false);
+    executeSearch(query, { force: true });
+    saveToSearchHistory(query);
+  }, [executeSearch, saveToSearchHistory]);
 
 
   const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    executeSearch(searchQuery, { force: true });
+    if (searchQuery.trim()) {
+      executeSearch(searchQuery, { force: true });
+      saveToSearchHistory(searchQuery);
+      setShowSearchDropdown(false);
+      setSearchQuery(''); // Clear the search input
+    }
   };
 
   const handleClearSearch = () => {
     setSearchQuery('');
     executeSearch('', { force: true });
+    setShowSearchDropdown(false);
   };
 
   const deriveSpotifyReference = (track: Track): string | null => {
@@ -927,13 +1031,83 @@ const Artists: React.FC = () => {
           </button>
         </div>
 
-        <div className="space-y-4">
-          <h3 className="text-sm uppercase tracking-[0.35em] text-white/40">Tracks</h3>
-          {searchResults.tracks.length === 0 ? (
-            <p className="text-sm text-white/60">No matching tracks found.</p>
-          ) : (
-            <div className="space-y-1.5">
-              {searchResults.tracks.map((track: Track) => (
+        <div className="space-y-6">
+          {/* Artists Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm uppercase tracking-[0.35em] text-white/40">Artists</h3>
+            {searchResults.artists.length === 0 ? (
+              <p className="text-sm text-white/60">No matching artists found.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-5">
+                {searchResults.artists.map((artist: ArtistMetadata) => {
+                  const artistIsFollowed = isFollowed(artist.id);
+                  const handleFollowClick = async (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    try {
+                      await toggleFollow(artist);
+                      toast.success(artistIsFollowed ? `Unfollowed ${artist.name}` : `Following ${artist.name}`);
+                    } catch (error: any) {
+                      console.error('Error toggling follow:', error);
+                      toast.error(error.message || 'Failed to follow/unfollow artist');
+                    }
+                  };
+                  
+                  return (
+                    <div
+                      key={artist.id}
+                      className="group flex flex-col items-center gap-3 cursor-pointer"
+                      onClick={() => navigate(`/artists/${artist.id}`, { state: { artist, category: 'Search Results' } })}
+                    >
+                      {/* Artist Image */}
+                      <div className="relative w-20 h-20 xs:w-24 xs:h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 lg:w-36 lg:h-36 rounded-full overflow-hidden border-2 border-white/20 group-hover:border-white/40 transition-all flex-shrink-0">
+                        {artist.image ? (
+                          <img
+                            src={artist.image}
+                            alt={artist.name}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-500/40 via-indigo-500/40 to-slate-900">
+                            <span className="text-white/70 text-xs xs:text-sm sm:text-base md:text-lg font-semibold">
+                              {getArtistInitials(artist.name)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Artist Name and Follow Button */}
+                      <div className="flex flex-col items-center gap-2 w-full">
+                        <h3 className="text-white text-xs sm:text-sm font-medium text-center w-full truncate px-1">
+                          {artist.name}
+                        </h3>
+                        <button
+                          type="button"
+                          onClick={handleFollowClick}
+                          className={`px-4 py-1.5 rounded-full border-2 text-xs font-semibold transition-all hover:scale-105 ${
+                            artistIsFollowed
+                              ? 'border-white/30 bg-transparent text-white hover:border-white/50'
+                              : 'border-white/30 bg-transparent text-white hover:border-white/50 hover:bg-white/10'
+                          }`}
+                        >
+                          {artistIsFollowed ? 'Following' : 'Follow'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Tracks Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm uppercase tracking-[0.35em] text-white/40">Tracks</h3>
+            {searchResults.tracks.length === 0 ? (
+              <p className="text-sm text-white/60">No matching tracks found.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {searchResults.tracks.map((track: Track) => (
                 <button
                   key={track.id}
                   type="button"
@@ -994,6 +1168,7 @@ const Artists: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
       </section>
     );
   };
@@ -1083,9 +1258,10 @@ const Artists: React.FC = () => {
 
           <div className="space-y-6 sm:space-y-8 md:space-y-10">
             {/* Centered Search Bar */}
-            <div className="flex justify-center items-center w-full px-4">
-              <form onSubmit={handleSearchSubmit} className="w-full max-w-3xl">
-                <div className="relative flex items-center rounded-full bg-[#1a1a1a] border border-white/10 transition-all duration-200 focus-within:border-white/20 hover:border-white/15">
+            <div className="flex justify-center items-center w-full px-4 relative search-dropdown-container">
+              <div className="w-full max-w-3xl relative">
+                <form onSubmit={handleSearchSubmit} className="w-full">
+                  <div className="relative flex items-center rounded-full bg-[#1a1a1a] border border-white/10 transition-all duration-200 focus-within:border-white/20 hover:border-white/15">
                   {/* Search Icon */}
                   <div className="absolute left-4 sm:left-5 flex items-center justify-center pointer-events-none">
                     <svg 
@@ -1108,6 +1284,7 @@ const Artists: React.FC = () => {
                     type="text"
                     value={searchQuery}
                     onChange={handleSearchChange}
+                    onFocus={() => setShowSearchDropdown(true)}
                     placeholder="What do you want to play?"
                     className={`flex-1 bg-transparent text-base sm:text-lg text-white placeholder:text-white/60 focus:outline-none pl-12 sm:pl-14 py-4 sm:py-5 ${
                       searchQuery ? 'pr-12 sm:pr-14' : 'pr-4 sm:pr-5'
@@ -1139,8 +1316,243 @@ const Artists: React.FC = () => {
                       </svg>
                     </button>
                   )}
-                </div>
-              </form>
+                  </div>
+                </form>
+              
+                {/* YouTube-like Search Dropdown */}
+                {showSearchDropdown && (
+                  <>
+                    <style>{`
+                      .search-dropdown-scroll::-webkit-scrollbar {
+                        width: 8px;
+                      }
+                      .search-dropdown-scroll::-webkit-scrollbar-track {
+                        background: transparent;
+                        border-radius: 4px;
+                      }
+                      .search-dropdown-scroll::-webkit-scrollbar-thumb {
+                        background: rgba(255, 255, 255, 0.15);
+                        border-radius: 4px;
+                        transition: background 0.2s;
+                      }
+                      .search-dropdown-scroll::-webkit-scrollbar-thumb:hover {
+                        background: rgba(255, 255, 255, 0.25);
+                      }
+                      .search-dropdown-scroll {
+                        scrollbar-width: thin;
+                        scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+                      }
+                    `}</style>
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-[95%] mt-2 bg-[#1a1a1a] rounded-2xl shadow-2xl z-50 max-h-[600px] overflow-y-auto border border-white/10 overflow-x-hidden search-dropdown-scroll">
+                  {/* Search History Section */}
+                  {!searchQuery.trim() && searchHistory.length > 0 && (
+                    <div className="py-1">
+                      {searchHistory.map((historyItem, index) => {
+                        // Try to find matching artist or track for thumbnail
+                        const matchingArtist = searchResults.artists.find(a => 
+                          a.name.toLowerCase().includes(historyItem.toLowerCase()) || 
+                          historyItem.toLowerCase().includes(a.name.toLowerCase())
+                        );
+                        const matchingTrack = searchResults.tracks.find(t => 
+                          t.name.toLowerCase().includes(historyItem.toLowerCase()) || 
+                          historyItem.toLowerCase().includes(t.name.toLowerCase())
+                        );
+                        const thumbnail = matchingArtist?.image || matchingTrack?.albumImage;
+                        
+                        return (
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => handleSearchSuggestionClick(historyItem)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 active:bg-white/10 transition-colors group relative"
+                          >
+                            {/* History Icon */}
+                            <svg 
+                              width="20" 
+                              height="20" 
+                              viewBox="0 0 24 24" 
+                              fill="none" 
+                              stroke="currentColor" 
+                              strokeWidth="2"
+                              className="text-white/60 flex-shrink-0"
+                            >
+                              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                              <path d="M21 3v5h-5" />
+                              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                              <path d="M8 16H3v5" />
+                            </svg>
+                            
+                            {/* Search Text */}
+                            <span className="flex-1 text-sm text-white text-left truncate">
+                              {historyItem}
+                            </span>
+                            
+                            {/* Thumbnail on Right */}
+                            {thumbnail && (
+                              <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0 bg-white/10">
+                                <img
+                                  src={thumbnail}
+                                  alt={historyItem}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            )}
+                            
+                            {/* Remove Button - Only show on hover */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeFromSearchHistory(historyItem);
+                              }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-white/10 rounded-full ml-auto"
+                              aria-label="Remove from history"
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-white/60">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                              </svg>
+                            </button>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  {/* Search Results (Artists & Songs) */}
+                  {searchQuery.trim() && (
+                    <div className="py-1">
+                      {/* Artists */}
+                      {searchResults.artists.slice(0, 5).map((artist) => (
+                        <button
+                          key={artist.id}
+                          type="button"
+                          onClick={() => {
+                            handleSearchSuggestionClick(artist.name);
+                            setShowSearchDropdown(false);
+                            navigate(`/artists/${artist.id}`, { state: { artist, category: 'Search Results' } });
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 active:bg-white/10 transition-colors group"
+                        >
+                          {/* History Icon */}
+                          <svg 
+                            width="20" 
+                            height="20" 
+                            viewBox="0 0 24 24" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="2"
+                            className="text-white/60 flex-shrink-0"
+                          >
+                            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                            <path d="M21 3v5h-5" />
+                            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                            <path d="M8 16H3v5" />
+                          </svg>
+                          
+                          {/* Artist Name */}
+                          <span className="flex-1 text-sm text-white text-left truncate">
+                            {artist.name}
+                          </span>
+                          
+                          {/* Artist Thumbnail on Right */}
+                          <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-white/10">
+                            {artist.image ? (
+                              <img
+                                src={artist.image}
+                                alt={artist.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500/40 to-indigo-500/40">
+                                    <span className="text-white/70 text-xs font-semibold">
+                                      {getArtistInitials(artist.name)}
+                                    </span>
+                                  </div>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                      
+                      {/* Songs/Tracks */}
+                      {searchResults.tracks.slice(0, 5).map((track) => (
+                        <button
+                          key={track.id}
+                          type="button"
+                          onClick={() => {
+                            handleSearchSuggestionClick(track.name);
+                            setShowSearchDropdown(false);
+                            handlePlayFromSearch(track);
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 active:bg-white/10 transition-colors group"
+                        >
+                          {/* History Icon */}
+                          <svg 
+                            width="20" 
+                            height="20" 
+                            viewBox="0 0 24 24" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="2"
+                            className="text-white/60 flex-shrink-0"
+                          >
+                            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                            <path d="M21 3v5h-5" />
+                            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                            <path d="M8 16H3v5" />
+                          </svg>
+                          
+                          {/* Track Info */}
+                          <div className="flex-1 text-left min-w-0">
+                            <div className="text-sm text-white truncate font-medium">
+                              {track.name}
+                            </div>
+                            {track.artists && (
+                              <div className="text-xs text-white/60 truncate">
+                                {track.artists}
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Track Thumbnail on Right */}
+                          <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0 bg-white/10">
+                            {track.albumImage ? (
+                              <img
+                                src={track.albumImage}
+                                alt={track.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500/20 to-indigo-500/20">
+                                <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M18 3a1 1 0 00-1.447-.894L8.763 6H5a3 3 0 000 6h.28l1.771 5.316A1 1 0 008 18h1a1 1 0 001-1v-4.382l6.553 3.276A1 1 0 0018 15V3z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                      
+                      {/* No Results */}
+                      {searchResults.artists.length === 0 && searchResults.tracks.length === 0 && !isSearching && (
+                        <div className="px-4 py-8 text-center text-sm text-white/60">
+                          No results found for "{searchQuery}"
+                        </div>
+                      )}
+                      
+                      {/* Loading State */}
+                      {isSearching && (
+                        <div className="px-4 py-8 text-center">
+                          <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-white/40"></div>
+                          <p className="mt-2 text-sm text-white/60">Searching...</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  </div>
+                  </>
+                )}
+              </div>
             </div>
 
 

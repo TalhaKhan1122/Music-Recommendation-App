@@ -53,10 +53,49 @@ export const createStation = async (req: AuthenticatedRequest, res: Response): P
       }
     }
 
+    // Helper function to check if two artist arrays are the same (by ID, regardless of order)
+    const areArtistsSame = (artists1: Array<{ id: string }>, artists2: Array<{ id: string }>): boolean => {
+      if (artists1.length !== artists2.length) return false;
+      const ids1 = artists1.map(a => a.id).sort();
+      const ids2 = artists2.map(a => a.id).sort();
+      return ids1.every((id, index) => id === ids2[index]);
+    };
+
+    // Get all existing stations for this user
+    const existingStations = await Station.find({
+      user: req.user.id,
+    });
+
+    // Check if a station with the same name already exists
+    const duplicateByName = existingStations.find(
+      station => station.name.toLowerCase().trim() === name.toLowerCase().trim()
+    );
+
+    if (duplicateByName) {
+      res.status(409).json({
+        success: false,
+        message: 'The station already exists',
+      });
+      return;
+    }
+
+    // Check if a station with the same artists already exists (regardless of order)
+    const duplicateByArtists = existingStations.find(
+      station => areArtistsSame(station.artists, artists)
+    );
+
+    if (duplicateByArtists) {
+      res.status(409).json({
+        success: false,
+        message: 'The station already exists',
+      });
+      return;
+    }
+
     // Create new station
     const station = new Station({
       user: req.user.id,
-      name,
+      name: name.trim(),
       artists,
       color,
     });

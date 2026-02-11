@@ -200,26 +200,55 @@ const AIMode: React.FC = () => {
   };
 
   // Map face-api.js emotions to app moods
-  const mapEmotionToMood = (emotion: string, confidence: number): { mood: string; confidence: number } => {
-    // face-api.js emotions: neutral, happy, sad, angry, fearful, disgusted, surprised
-    // App moods: happy, sad, excited, relaxed, focused
+  // This ensures all manual selection moods can be detected from camera
+  // Manual selection moods: happy, sad, excited, surprised, relaxed, neutral, focused, angry, fearful, disgusted
+  // Camera can now detect all 10 moods: happy, sad, excited, surprised, relaxed, neutral, focused, angry, fearful, disgusted
+  const mapEmotionToMood = (emotion: string, confidence: number): { mood: string; confidence: number; displayMood?: string } => {
+    // face-api.js base emotions: neutral, happy, sad, angry, fearful, disgusted, surprised
+    // Enhanced moods: excited, relaxed, focused (detected via special logic)
     
     switch (emotion) {
       case 'happy':
-        return { mood: 'happy', confidence };
+        // happy is directly detectable and matches manual selection
+        return { mood: 'happy', confidence, displayMood: 'happy' };
       case 'sad':
-        return { mood: 'sad', confidence };
+        // sad is directly detectable and matches manual selection
+        return { mood: 'sad', confidence, displayMood: 'sad' };
+      case 'excited':
+        // excited is now directly detectable (via enhanced detection logic)
+        // Maps to "excited" for backend API
+        return { mood: 'excited', confidence, displayMood: 'excited' };
       case 'surprised':
-        return { mood: 'excited', confidence };
+        // surprised is directly detectable - matches manual selection "surprised"
+        // Also maps to "excited" for backend API
+        return { mood: 'excited', confidence, displayMood: 'surprised' };
+      case 'relaxed':
+        // relaxed is now directly detectable (via enhanced detection logic)
+        // Maps to "relaxed" for backend API
+        return { mood: 'relaxed', confidence, displayMood: 'relaxed' };
       case 'neutral':
-        return { mood: 'relaxed', confidence };
+        // neutral is directly detectable - matches manual selection "neutral"
+        // Also maps to "relaxed" for backend API
+        return { mood: 'relaxed', confidence, displayMood: 'neutral' };
+      case 'focused':
+        // focused is now directly detectable (via enhanced detection logic)
+        // Maps to "focused" for backend API
+        return { mood: 'focused', confidence, displayMood: 'focused' };
       case 'angry':
+        // angry is directly detectable - matches manual selection "angry"
+        // Also maps to "focused" for backend API
+        return { mood: 'focused', confidence, displayMood: 'angry' };
       case 'fearful':
+        // fearful is directly detectable - matches manual selection "fearful"
+        // Also maps to "focused" for backend API
+        return { mood: 'focused', confidence, displayMood: 'fearful' };
       case 'disgusted':
-        return { mood: 'focused', confidence };
+        // disgusted is directly detectable - matches manual selection "disgusted"
+        // Also maps to "focused" for backend API
+        return { mood: 'focused', confidence, displayMood: 'disgusted' };
       default:
         // Default to relaxed for unknown emotions
-        return { mood: 'relaxed', confidence: Math.max(0.5, confidence * 0.8) };
+        return { mood: 'relaxed', confidence: Math.max(0.5, confidence * 0.8), displayMood: 'neutral' };
     }
   };
 
@@ -385,14 +414,108 @@ const AIMode: React.FC = () => {
 
       console.log('🎯 Selected emotion:', selectedEmotion, 'confidence:', selectedConfidence.toFixed(3));
 
+      // Enhanced detection: Check if we can detect "excited", "relaxed", or "focused" as separate moods
+      // BUT preserve base emotions (surprised, angry, etc.) when they are clearly detected
+      // These moods are in manual selection and should be detectable from camera
+      let finalEmotion = selectedEmotion;
+      let finalConfidence = selectedConfidence;
+      
+      // Priority: Check base emotions first (surprised, angry, etc.) before enhanced moods
+      // This ensures "surprised" and "angry" can be detected directly
+      
+      // Detect "surprised" directly when it's clearly surprised (not excited)
+      // Surprised should be detected when surprised is the top emotion and has reasonable confidence
+      // OR when surprised is high but doesn't have strong happy component (indicating pure surprise, not excitement)
+      if ((selectedEmotion === 'surprised' && surprisedProb >= 0.25) || 
+          (surprisedProb >= 0.3 && happyProb < 0.2 && surprisedProb > neutralProb)) {
+        // Clear surprised emotion = surprised mood (not excited)
+        finalEmotion = 'surprised';
+        finalConfidence = surprisedProb;
+        console.log('😲 Surprised mood detected directly! (surprised:', surprisedProb.toFixed(3), 'happy:', happyProb.toFixed(3), ')');
+      }
+      // Detect "angry" directly when it's clearly angry (not focused)
+      // Angry should be detected when angry is the top emotion or when it's clearly dominant
+      else if ((selectedEmotion === 'angry' && angryProb >= 0.25) || 
+               (angryProb >= 0.3 && angryProb > Math.max(fearfulProb, disgustedProb) * 1.1 && angryProb > neutralProb)) {
+        // Clear angry emotion = angry mood (not focused)
+        finalEmotion = 'angry';
+        finalConfidence = angryProb;
+        console.log('😠 Angry mood detected directly! (angry:', angryProb.toFixed(3), 'fearful:', fearfulProb.toFixed(3), 'disgusted:', disgustedProb.toFixed(3), ')');
+      }
+      // Detect "fearful" directly when it's clearly fearful (not focused)
+      // Fearful should be detected when fearful is the top emotion or when it's clearly dominant
+      else if ((selectedEmotion === 'fearful' && fearfulProb >= 0.25) || 
+               (fearfulProb >= 0.3 && fearfulProb > Math.max(angryProb, disgustedProb) * 1.1 && fearfulProb > neutralProb)) {
+        // Clear fearful emotion = fearful mood (not focused)
+        finalEmotion = 'fearful';
+        finalConfidence = fearfulProb;
+        console.log('😨 Fearful mood detected directly! (fearful:', fearfulProb.toFixed(3), 'angry:', angryProb.toFixed(3), 'disgusted:', disgustedProb.toFixed(3), ')');
+      }
+      // Detect "disgusted" directly when it's clearly disgusted (not focused)
+      // Disgusted should be detected when disgusted is the top emotion or when it's clearly dominant
+      else if ((selectedEmotion === 'disgusted' && disgustedProb >= 0.25) || 
+               (disgustedProb >= 0.3 && disgustedProb > Math.max(angryProb, fearfulProb) * 1.1 && disgustedProb > neutralProb)) {
+        // Clear disgusted emotion = disgusted mood (not focused)
+        finalEmotion = 'disgusted';
+        finalConfidence = disgustedProb;
+        console.log('🤢 Disgusted mood detected directly! (disgusted:', disgustedProb.toFixed(3), 'angry:', angryProb.toFixed(3), 'fearful:', fearfulProb.toFixed(3), ')');
+      }
+      // Detect "excited" mood: high surprised + positive energy (happy component)
+      // Excited is a manual selection mood that should be detectable
+      // Only detect excited if surprised is high AND has positive energy (not just pure surprise)
+      // This should come AFTER checking for pure "surprised"
+      else if (surprisedProb >= 0.3 && (happyProb > 0.15 || surprisedProb > 0.5)) {
+        // High surprised with positive energy = excited mood
+        finalEmotion = 'excited';
+        finalConfidence = Math.max(surprisedProb, (surprisedProb + happyProb) / 2);
+        console.log('🎉 Excited mood detected! (surprised:', surprisedProb.toFixed(3), 'happy:', happyProb.toFixed(3), ')');
+      }
+      // Detect "relaxed" mood: high neutral + low negative emotions
+      // Relaxed is a manual selection mood that should be detectable
+      else if (neutralProb >= 0.5 && Math.max(angryProb, fearfulProb, disgustedProb, sadProb) < 0.2) {
+        // High neutral with low negative = relaxed mood
+        finalEmotion = 'relaxed';
+        finalConfidence = neutralProb;
+        console.log('😌 Relaxed mood detected! (neutral:', neutralProb.toFixed(3), ')');
+      }
+      // Detect "focused" mood: high concentration (angry/fearful/disgusted with specific pattern)
+      // Focused is a manual selection mood that should be detectable
+      // Only detect focused if concentration emotions are high but no single emotion is clearly dominant
+      // This should NOT override clearly detected "angry", "fearful", or "disgusted"
+      // Check if we've already detected a specific emotion - if so, don't override with "focused"
+      const hasDetectedSpecificEmotion = finalEmotion === 'angry' || finalEmotion === 'fearful' || finalEmotion === 'disgusted';
+      
+      if (!hasDetectedSpecificEmotion && 
+          (angryProb >= 0.3 || fearfulProb >= 0.3 || disgustedProb >= 0.3) && 
+          neutralProb < 0.4 && happyProb < 0.15 &&
+          // Only detect focused if no single emotion is clearly dominant (within 30% of each other)
+          Math.max(angryProb, fearfulProb, disgustedProb) <= Math.max(fearfulProb, disgustedProb, angryProb) * 1.3) {
+        // High concentration emotions with low neutral/happy and no single dominant emotion = focused mood
+        const concentrationProb = Math.max(angryProb, fearfulProb, disgustedProb);
+        finalEmotion = 'focused';
+        finalConfidence = concentrationProb;
+        console.log('🤔 Focused mood detected! (concentration:', concentrationProb.toFixed(3), ')');
+      }
+
       // Map emotion to app mood
-      const moodResult = mapEmotionToMood(selectedEmotion, selectedConfidence);
+      const moodResult = mapEmotionToMood(finalEmotion, finalConfidence);
       console.log('✅ Mapped to mood:', moodResult.mood, 'confidence:', moodResult.confidence.toFixed(3));
       
-      // Return both the backend mood and the original emotion for display
+      // Return both the backend mood and the display mood (which should match manual selection)
+      // All manual selection moods: happy, sad, excited, surprised, relaxed, neutral, focused, angry, fearful, disgusted
+      // Use the finalEmotion directly as display mood if it's one of the manual selection moods
+      // Otherwise, use displayMood from mapping
+      const manualSelectionMoods = ['happy', 'sad', 'excited', 'surprised', 'relaxed', 'neutral', 'focused', 'angry', 'fearful', 'disgusted'];
+      const displayMood = manualSelectionMoods.includes(finalEmotion) 
+        ? finalEmotion 
+        : (moodResult.displayMood || finalEmotion);
+      
+      console.log('📺 Final display mood:', displayMood, '(detected:', finalEmotion, ', backend:', moodResult.mood, ')');
+      
       return {
-        ...moodResult,
-        originalEmotion: selectedEmotion, // Store original emotion for display on Player page
+        mood: moodResult.mood, // Backend mood (happy, sad, excited, relaxed, focused)
+        confidence: moodResult.confidence,
+        originalEmotion: displayMood, // Display mood that matches manual selection (all 10 moods: happy, sad, excited, surprised, relaxed, neutral, focused, angry, fearful, disgusted)
       };
     } catch (error: any) {
       console.error('❌ Error in mood analysis:', error);
