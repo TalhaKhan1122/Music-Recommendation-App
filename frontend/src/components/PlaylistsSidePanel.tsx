@@ -196,24 +196,24 @@ const PlaylistsSidePanel: React.FC<PlaylistsSidePanelProps> = ({ isOpen, onClose
     <>
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 transition-opacity"
+        className="fixed inset-0 bg-white/20 backdrop-blur-sm z-50 transition-opacity min-h-screen h-full"
         onClick={onClose}
       />
       
       {/* Side Panel */}
       <div
         ref={panelRef}
-        className="fixed right-0 top-0 h-full w-full sm:w-96 bg-gray-900/98 backdrop-blur-xl border-l border-white/10 shadow-2xl z-50 flex flex-col transform transition-transform duration-300 ease-out"
+        className="fixed right-0 top-0 h-full w-full sm:w-96 bg-black border-l border-white/10 shadow-2xl z-50 flex flex-col transform transition-transform duration-300 ease-out"
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <h2 className="text-white text-xl font-bold">Your Library</h2>
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-white/10">
+          <h2 className="text-white text-xl sm:text-2xl font-bold">Your Library</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors p-2"
+            className="text-white/60 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/10"
             aria-label="Close panel"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
@@ -224,20 +224,20 @@ const PlaylistsSidePanel: React.FC<PlaylistsSidePanelProps> = ({ isOpen, onClose
         <div className="flex border-b border-white/10">
           <button
             onClick={() => setActiveTab('playlists')}
-            className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
+            className={`flex-1 px-4 sm:px-6 py-3 text-sm font-semibold transition-colors ${
               activeTab === 'playlists'
                 ? 'text-white border-b-2 border-purple-500'
-                : 'text-gray-400 hover:text-white'
+                : 'text-white/60 hover:text-white'
             }`}
           >
             Playlists
           </button>
           <button
             onClick={() => setActiveTab('liked')}
-            className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
+            className={`flex-1 px-4 sm:px-6 py-3 text-sm font-semibold transition-colors ${
               activeTab === 'liked'
                 ? 'text-white border-b-2 border-purple-500'
-                : 'text-gray-400 hover:text-white'
+                : 'text-white/60 hover:text-white'
             }`}
           >
             Liked Songs
@@ -245,13 +245,13 @@ const PlaylistsSidePanel: React.FC<PlaylistsSidePanelProps> = ({ isOpen, onClose
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
               <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-purple-500"></div>
             </div>
           ) : activeTab === 'playlists' ? (
-            <div className="p-4 space-y-2">
+            <div className="p-4 sm:p-6 space-y-3">
               {isLoadingPlaylist ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
@@ -259,21 +259,21 @@ const PlaylistsSidePanel: React.FC<PlaylistsSidePanelProps> = ({ isOpen, onClose
               ) : selectedPlaylist ? (
                 <div>
                   {/* Playlist Header */}
-                  <div className="mb-4 pb-4 border-b border-white/10">
+                  <div className="mb-6 pb-6 border-b border-white/10">
                     <button
                       onClick={() => setSelectedPlaylist(null)}
-                      className="text-gray-400 hover:text-white mb-3 flex items-center gap-2 text-sm transition-colors"
+                      className="text-white/60 hover:text-white mb-4 flex items-center gap-2 text-sm transition-colors"
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                         <path d="M19 12H5M12 19l-7-7 7-7"/>
                       </svg>
                       Back to Playlists
                     </button>
-                    <h3 className="text-white font-bold text-lg mb-1">{selectedPlaylist.name}</h3>
+                    <h3 className="text-white font-bold text-lg sm:text-xl mb-2">{selectedPlaylist.name}</h3>
                     {selectedPlaylist.description && (
-                      <p className="text-gray-400 text-sm mb-2">{selectedPlaylist.description}</p>
+                      <p className="text-white/60 text-sm mb-2">{selectedPlaylist.description}</p>
                     )}
-                    <p className="text-gray-500 text-xs">
+                    <p className="text-white/40 text-xs">
                       {selectedPlaylist.trackCount} {selectedPlaylist.trackCount === 1 ? 'track' : 'tracks'}
                     </p>
                   </div>
@@ -282,15 +282,16 @@ const PlaylistsSidePanel: React.FC<PlaylistsSidePanelProps> = ({ isOpen, onClose
                   <div className="space-y-2 max-h-[60vh] overflow-y-auto">
                     {selectedPlaylist.tracks && selectedPlaylist.tracks.length > 0 ? (
                       selectedPlaylist.tracks.map((track, index) => (
-                        <div
+                        <button
                           key={track.trackId || index}
+                          type="button"
                           onClick={() => handlePlayPlaylistTrack(track, selectedPlaylist.tracks)}
-                          className="flex items-center gap-3 p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 cursor-pointer transition-colors group"
+                          className="w-full flex items-center gap-3 p-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 cursor-pointer transition-all group text-left"
                         >
-                          <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-gray-400 text-xs">
+                          <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-white/40 text-xs font-medium">
                             {index + 1}
                           </div>
-                          <div className="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gradient-to-br from-purple-600 to-indigo-600">
+                          <div className="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gradient-to-br from-purple-500/40 to-indigo-500/40">
                             {track.albumImage ? (
                               <img 
                                 src={track.albumImage} 
@@ -299,7 +300,7 @@ const PlaylistsSidePanel: React.FC<PlaylistsSidePanelProps> = ({ isOpen, onClose
                               />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/70">
                                   <path d="M9 18V5l12-2v13M9 18c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3zm12-3c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3zM9 12l12-2"></path>
                                 </svg>
                               </div>
@@ -307,45 +308,46 @@ const PlaylistsSidePanel: React.FC<PlaylistsSidePanelProps> = ({ isOpen, onClose
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-white font-medium text-sm truncate">{track.name}</p>
-                            <p className="text-gray-400 text-xs truncate">{track.artists || 'Unknown Artist'}</p>
+                            <p className="text-white/60 text-xs truncate">{track.artists || 'Unknown Artist'}</p>
                           </div>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               handlePlayPlaylistTrack(track, selectedPlaylist.tracks);
                             }}
-                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-white transition-all p-2"
+                            className="opacity-0 group-hover:opacity-100 text-white/60 hover:text-white transition-all p-2 rounded-lg hover:bg-white/10"
                           >
-                            <PlayIcon size={20} />
+                            <PlayIcon size={18} />
                           </button>
-                        </div>
+                        </button>
                       ))
                     ) : (
-                      <div className="text-center py-12">
-                        <p className="text-gray-400 text-sm">This playlist is empty</p>
+                      <div className="text-center py-12 rounded-xl border border-white/10 bg-white/5">
+                        <p className="text-white/60 text-sm">This playlist is empty</p>
                       </div>
                     )}
                   </div>
                 </div>
               ) : playlists.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-gray-400 text-sm">No playlists yet</p>
+                <div className="text-center py-12 rounded-xl border border-white/10 bg-white/5">
+                  <p className="text-white/60 text-sm">No playlists yet</p>
                 </div>
               ) : (
                 playlists.map((playlist) => (
-                  <div
+                  <button
                     key={playlist.id}
+                    type="button"
                     onClick={() => handlePlaylistClick(playlist.id)}
-                    className="flex items-center gap-3 p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 cursor-pointer transition-colors group"
+                    className="w-full flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 cursor-pointer transition-all group text-left"
                   >
-                    <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white">
+                    <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-gradient-to-br from-purple-500/40 to-indigo-500/40 flex items-center justify-center border border-white/10">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/70">
                         <path d="M9 18V5l12-2v13M9 18c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3zm12-3c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3zM9 12l12-2"></path>
                       </svg>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-medium text-sm truncate">{playlist.name}</p>
-                      <p className="text-gray-400 text-xs truncate">
+                      <p className="text-white/60 text-xs truncate">
                         {playlist.trackCount} {playlist.trackCount === 1 ? 'song' : 'songs'}
                       </p>
                     </div>
@@ -354,30 +356,33 @@ const PlaylistsSidePanel: React.FC<PlaylistsSidePanelProps> = ({ isOpen, onClose
                         e.stopPropagation();
                         handlePlaylistClick(playlist.id);
                       }}
-                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-white transition-all p-2"
-                      title="Play playlist"
+                      className="opacity-0 group-hover:opacity-100 text-white/60 hover:text-white transition-all p-2 rounded-lg hover:bg-white/10"
+                      title="View playlist"
                     >
-                      <PlayIcon size={20} />
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                      </svg>
                     </button>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
           ) : (
-            <div className="p-4 space-y-2">
+            <div className="p-4 sm:p-6 space-y-3">
               {likedSongs.length === 0 ? (
-                <div className="text-center py-12">
-                  <HeartIcon size={48} className="mx-auto mb-4 text-gray-600" filled />
-                  <p className="text-gray-400 text-sm">No liked songs yet</p>
+                <div className="text-center py-12 rounded-xl border border-white/10 bg-white/5">
+                  <HeartIcon size={48} className="mx-auto mb-4 text-white/40" filled />
+                  <p className="text-white/60 text-sm">No liked songs yet</p>
                 </div>
               ) : (
                 likedSongs.map((track) => (
-                  <div
+                  <button
                     key={track._id}
+                    type="button"
                     onClick={() => handlePlayTrack(track)}
-                    className="flex items-center gap-3 p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 cursor-pointer transition-colors group"
+                    className="w-full flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 cursor-pointer transition-all group text-left"
                   >
-                    <div className="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gradient-to-br from-pink-600 to-red-600">
+                    <div className="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-gradient-to-br from-pink-500/40 to-red-500/40 border border-white/10">
                       {track.albumImage ? (
                         <img 
                           src={track.albumImage} 
@@ -386,30 +391,46 @@ const PlaylistsSidePanel: React.FC<PlaylistsSidePanelProps> = ({ isOpen, onClose
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <HeartIcon size={24} className="text-white" filled />
+                          <HeartIcon size={20} className="text-white/70" filled />
                         </div>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-medium text-sm truncate">{track.name}</p>
-                      <p className="text-gray-400 text-xs truncate">{track.artists || 'Unknown Artist'}</p>
+                      <p className="text-white/60 text-xs truncate">{track.artists || 'Unknown Artist'}</p>
                     </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handlePlayTrack(track);
                       }}
-                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-white transition-all p-2"
+                      className="opacity-0 group-hover:opacity-100 text-white/60 hover:text-white transition-all p-2 rounded-lg hover:bg-white/10"
                     >
-                      <PlayIcon size={20} />
+                      <PlayIcon size={18} />
                     </button>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
           )}
         </div>
       </div>
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.3);
+        }
+      `}</style>
     </>
   );
 };

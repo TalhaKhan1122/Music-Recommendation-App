@@ -8,4 +8,6 @@ export { default as Artists } from './Artists';
 export { default as ArtistDetail } from './ArtistDetail';
 export { default as StationDetail } from './StationDetail';
 export { default as Playlists } from './Playlists';
+export { default as ForgotPassword } from './ForgotPassword';
+export { default as ResetPassword } from './ResetPassword';
 

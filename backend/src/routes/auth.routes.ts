@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { signup, login, getCurrentUser } from '../controllers/auth.controller';
+import { signup, login, getCurrentUser, forgotPassword, resetPassword } from '../controllers/auth.controller';
 import { googleAuth, googleCallback, verifyGoogleToken } from '../controllers/googleAuth.controller';
 import { authenticate } from '../middleware';
 
@@ -46,6 +46,20 @@ router.post('/google/verify', verifyGoogleToken);
  * @access  Private
  */
 router.get('/me', authenticate, getCurrentUser);
+
+/**
+ * @route   POST /api/auth/forgot-password
+ * @desc    Send password reset email
+ * @access  Public
+ */
+router.post('/forgot-password', forgotPassword);
+
+/**
+ * @route   POST /api/auth/reset-password
+ * @desc    Reset password with token
+ * @access  Public
+ */
+router.post('/reset-password', resetPassword);
 
 export default router;
 

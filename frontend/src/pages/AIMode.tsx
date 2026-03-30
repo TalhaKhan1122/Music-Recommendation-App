@@ -2,14 +2,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getTracksByMood } from '../api/music.api';
-import * as faceLandmarksDetection from '@tensorflow-models/face-landmarks-detection';
-import * as tf from '@tensorflow/tfjs';
+import * as faceapi from 'face-api.js';
 
 const AIMode: React.FC = () => {
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [showCamera, setShowCamera] = useState(false); // Separate state to control camera visibility
   const [mood, setMood] = useState<string | null>(null);
   const [confidence, setConfidence] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
@@ -22,45 +22,29 @@ const AIMode: React.FC = () => {
   const currentMoodRef = useRef<string | null>(null); // Always keep latest mood in ref
   const isDetectingRef = useRef<boolean>(false); // Track detecting state to avoid closure issues
   const hasNavigatedRef = useRef<boolean>(false); // Track whether we've already redirected to the player
-  const faceDetectionModelRef = useRef<faceLandmarksDetection.FaceLandmarksDetector | null>(null);
+  const modelsLoadedRef = useRef<boolean>(false);
   const [isModelLoading, setIsModelLoading] = useState(false);
-  const modelLoadPromiseRef = useRef<Promise<faceLandmarksDetection.FaceLandmarksDetector | null> | null>(null);
+  const modelLoadPromiseRef = useRef<Promise<void> | null>(null);
   const [modelLoadError, setModelLoadError] = useState<string | null>(null);
-
-  // Initialize TensorFlow.js on component mount
-  useEffect(() => {
-    const initializeTensorFlow = async () => {
-      try {
-        // Initialize TensorFlow.js with WebGL backend for better performance
-        await tf.ready();
-        console.log('✅ TensorFlow.js initialized');
-        console.log('📊 Backend:', tf.getBackend());
-        console.log('📊 Available backends:', await tf.engine().backendNames);
-      } catch (error) {
-        console.error('❌ Failed to initialize TensorFlow.js:', error);
-      }
-    };
-
-    initializeTensorFlow();
-  }, []);
+  const [selectionMode, setSelectionMode] = useState<'camera' | 'manual'>('camera'); // Track selection mode
 
   // Track mood state changes for debugging
   useEffect(() => {
     console.log('🎭 MOOD STATE UPDATED:', mood, 'Confidence:', confidence);
   }, [mood, confidence]);
 
-  // Load model on component mount
+  // Load face-api.js models on component mount
   useEffect(() => {
     const initializeModel = async () => {
       try {
-        await loadFaceDetectionModel();
+        await loadFaceApiModels();
       } catch (error: any) {
-        console.error('Failed to load face detection model:', error);
+        console.error('Failed to load face-api.js models:', error);
         const errorMessage = error?.message || 'Unknown error';
         setModelLoadError(errorMessage);
-        toast.warning('AI model failed to load. Using fallback detection.', {
+        toast.error('AI model failed to load. Please refresh the page and try again.', {
           position: 'top-right',
-          autoClose: 3000,
+          autoClose: 5000,
         });
       }
     };
@@ -69,14 +53,7 @@ const AIMode: React.FC = () => {
 
     // Cleanup on unmount
     return () => {
-      if (faceDetectionModelRef.current) {
-        try {
-          faceDetectionModelRef.current.dispose();
-        } catch (error) {
-          console.warn('Error disposing model:', error);
-        }
-        faceDetectionModelRef.current = null;
-      }
+      modelsLoadedRef.current = false;
       modelLoadPromiseRef.current = null;
     };
   }, []);
@@ -90,21 +67,23 @@ const AIMode: React.FC = () => {
       setConfidence(0);
       setTracksFetched(false);
       setFetchedTracksCount(0);
+      setShowCamera(false); // Reset camera visibility
       lastFetchedMoodRef.current = null;
       currentMoodRef.current = null;
       
-      // Ensure model is loaded before starting - wait if already loading
-      if (!faceDetectionModelRef.current) {
+      // Ensure models are loaded before starting - wait if already loading
+      if (!modelsLoadedRef.current) {
         if (isModelLoading && modelLoadPromiseRef.current) {
-          console.log('⏳ Model is already loading, waiting...');
+          console.log('⏳ Models are already loading, waiting...');
           try {
             await modelLoadPromiseRef.current;
           } catch (error) {
-            console.warn('⚠️ Model loading failed, continuing with fallback:', error);
+            console.error('⚠️ Model loading failed:', error);
+            throw new Error('Face detection models failed to load. Please refresh the page.');
           }
         } else {
-          console.log('🤖 Loading face detection model...');
-          await loadFaceDetectionModel();
+          console.log('🤖 Loading face-api.js models...');
+          await loadFaceApiModels();
         }
       }
       
@@ -117,6 +96,7 @@ const AIMode: React.FC = () => {
         await videoRef.current.play();
         isDetectingRef.current = true; // Update ref immediately
         setIsDetecting(true);
+        setShowCamera(true); // Show camera
         console.log('🎥 Camera started, isDetecting set to true, beginning mood detection...');
         startMoodDetection();
       }
@@ -134,393 +114,413 @@ const AIMode: React.FC = () => {
       case 'happy': return '#10B981';
       case 'sad': return '#3B82F6';
       case 'excited': return '#EC4899';
+      case 'surprised': return '#F59E0B';
       case 'relaxed': return '#8B5CF6';
+      case 'neutral': return '#6B7280';
       case 'focused': return '#F59E0B';
+      case 'angry': return '#EF4444';
+      case 'fearful': return '#8B5CF6';
+      case 'disgusted': return '#84CC16';
       default: return '#6B7280';
     }
   };
 
-  // Load TensorFlow.js face detection model
-  const loadFaceDetectionModel = async (retryCount: number = 0): Promise<faceLandmarksDetection.FaceLandmarksDetector> => {
-    // Return existing model if already loaded
-    if (faceDetectionModelRef.current) {
-      return faceDetectionModelRef.current;
+  // Load face-api.js models (tinyFaceDetector + faceExpressionNet)
+  const loadFaceApiModels = async (): Promise<void> => {
+    // Return if already loaded
+    if (modelsLoadedRef.current) {
+      return;
     }
 
     // If already loading, return the existing promise
     if (modelLoadPromiseRef.current) {
-      return modelLoadPromiseRef.current as Promise<faceLandmarksDetection.FaceLandmarksDetector>;
+      return modelLoadPromiseRef.current;
     }
 
     // Create loading promise
-    const loadPromise = (async (): Promise<faceLandmarksDetection.FaceLandmarksDetector> => {
+    const loadPromise = (async (): Promise<void> => {
       try {
         setIsModelLoading(true);
         setModelLoadError(null);
-        console.log('🤖 Loading TensorFlow.js face detection model...');
+        console.log('🤖 Loading face-api.js models...');
         
-        // Ensure TensorFlow.js is ready
-        await tf.ready();
-        console.log('✅ TensorFlow.js ready, backend:', tf.getBackend());
+        // Try multiple CDN sources as fallback
+        const CDN_SOURCES = [
+          'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights',
+          'https://unpkg.com/face-api.js@0.22.2/weights',
+          'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights'
+        ];
         
-        const model = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
+        let lastError: Error | null = null;
+        let loaded = false;
         
-        // Try TensorFlow.js runtime first (more reliable, no external dependencies)
-        let detector: faceLandmarksDetection.FaceLandmarksDetector;
-        
-        try {
-          console.log('🔄 Attempting TensorFlow.js runtime...');
-          const detectorConfig: faceLandmarksDetection.MediaPipeFaceMeshTfjsModelConfig = {
-            runtime: 'tfjs',
-            refineLandmarks: true,
-            maxFaces: 1,
-          };
-          
-          detector = await faceLandmarksDetection.createDetector(model, detectorConfig);
-          console.log('✅ Face detection model loaded with TensorFlow.js runtime!');
-        } catch (tfjsError: any) {
-          console.warn('⚠️ TensorFlow.js runtime failed:', tfjsError?.message || tfjsError);
-          console.warn('⚠️ Trying MediaPipe runtime as fallback...');
-          
-          // Fallback to MediaPipe runtime
+        for (const MODEL_URL of CDN_SOURCES) {
           try {
-            const detectorConfig: faceLandmarksDetection.MediaPipeFaceMeshMediaPipeModelConfig = {
-              runtime: 'mediapipe',
-              solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh',
-              refineLandmarks: true,
-              maxFaces: 1,
-            };
-            
-            detector = await faceLandmarksDetection.createDetector(model, detectorConfig);
-            console.log('✅ Face detection model loaded with MediaPipe runtime!');
-          } catch (mediapipeError: any) {
-            console.error('❌ MediaPipe runtime also failed:', mediapipeError?.message || mediapipeError);
-            throw new Error(`Both runtimes failed. TF.js: ${tfjsError?.message || 'Unknown'}, MediaPipe: ${mediapipeError?.message || 'Unknown'}`);
+            console.log(`🔄 Trying to load models from: ${MODEL_URL}`);
+            await Promise.all([
+              faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+              faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+            ]);
+            console.log(`✅ Models loaded successfully from: ${MODEL_URL}`);
+            loaded = true;
+            break; // Success, exit loop
+          } catch (error: any) {
+            console.warn(`⚠️ Failed to load from ${MODEL_URL}:`, error.message);
+            lastError = error;
+            // Continue to next CDN source
           }
         }
-
-        faceDetectionModelRef.current = detector;
+        
+        // If all CDN sources failed, throw the last error
+        if (!loaded) {
+          throw lastError || new Error('All CDN sources failed to load models');
+        }
+        
+        modelsLoadedRef.current = true;
         setIsModelLoading(false);
         setModelLoadError(null);
         modelLoadPromiseRef.current = null;
         
-        return detector;
+        console.log('✅ face-api.js models loaded successfully!');
       } catch (error: any) {
-        console.error('❌ Error loading face detection model:', error);
+        console.error('❌ Error loading face-api.js models:', error);
         const errorMessage = error?.message || 'Unknown error occurred';
         setModelLoadError(errorMessage);
         setIsModelLoading(false);
+        modelsLoadedRef.current = false;
         modelLoadPromiseRef.current = null;
-        
-        // Retry once if this is the first attempt
-        if (retryCount === 0) {
-          console.log('🔄 Retrying model load...');
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
-          return loadFaceDetectionModel(1);
-        }
-        
-        toast.error(`Failed to load AI model: ${errorMessage}. Using fallback detection.`, {
-          position: 'top-right',
-          autoClose: 5000,
-        });
         throw error;
       }
     })();
 
     // Store the promise so other calls can wait for it
-    modelLoadPromiseRef.current = loadPromise as any;
+    modelLoadPromiseRef.current = loadPromise;
     
     return loadPromise;
   };
 
-  // Analyze mood from facial expression using TensorFlow.js
-  const analyzeMood = async (): Promise<{ mood: string; confidence: number }> => {
+  // Map face-api.js emotions to app moods
+  // This ensures all manual selection moods can be detected from camera
+  // Manual selection moods: happy, sad, excited, surprised, relaxed, neutral, focused, angry, fearful, disgusted
+  // Camera can now detect all 10 moods: happy, sad, excited, surprised, relaxed, neutral, focused, angry, fearful, disgusted
+  const mapEmotionToMood = (emotion: string, confidence: number): { mood: string; confidence: number; displayMood?: string } => {
+    // face-api.js base emotions: neutral, happy, sad, angry, fearful, disgusted, surprised
+    // Enhanced moods: excited, relaxed, focused (detected via special logic)
+    
+    switch (emotion) {
+      case 'happy':
+        // happy is directly detectable and matches manual selection
+        return { mood: 'happy', confidence, displayMood: 'happy' };
+      case 'sad':
+        // sad is directly detectable and matches manual selection
+        return { mood: 'sad', confidence, displayMood: 'sad' };
+      case 'excited':
+        // excited is now directly detectable (via enhanced detection logic)
+        // Maps to "excited" for backend API
+        return { mood: 'excited', confidence, displayMood: 'excited' };
+      case 'surprised':
+        // surprised is directly detectable - matches manual selection "surprised"
+        // Also maps to "excited" for backend API
+        return { mood: 'excited', confidence, displayMood: 'surprised' };
+      case 'relaxed':
+        // relaxed is now directly detectable (via enhanced detection logic)
+        // Maps to "relaxed" for backend API
+        return { mood: 'relaxed', confidence, displayMood: 'relaxed' };
+      case 'neutral':
+        // neutral is directly detectable - matches manual selection "neutral"
+        // Also maps to "relaxed" for backend API
+        return { mood: 'relaxed', confidence, displayMood: 'neutral' };
+      case 'focused':
+        // focused is now directly detectable (via enhanced detection logic)
+        // Maps to "focused" for backend API
+        return { mood: 'focused', confidence, displayMood: 'focused' };
+      case 'angry':
+        // angry is directly detectable - matches manual selection "angry"
+        // Also maps to "focused" for backend API
+        return { mood: 'focused', confidence, displayMood: 'angry' };
+      case 'fearful':
+        // fearful is directly detectable - matches manual selection "fearful"
+        // Also maps to "focused" for backend API
+        return { mood: 'focused', confidence, displayMood: 'fearful' };
+      case 'disgusted':
+        // disgusted is directly detectable - matches manual selection "disgusted"
+        // Also maps to "focused" for backend API
+        return { mood: 'focused', confidence, displayMood: 'disgusted' };
+      default:
+        // Default to relaxed for unknown emotions
+        return { mood: 'relaxed', confidence: Math.max(0.5, confidence * 0.8), displayMood: 'neutral' };
+    }
+  };
+
+  // Analyze mood from facial expression using face-api.js
+  const analyzeMood = async (): Promise<{ mood: string; confidence: number; originalEmotion?: string }> => {
     try {
       console.log('🔍 ========== analyzeMood() CALLED ==========');
       console.log('🔍 Video ref exists?', !!videoRef.current);
-      console.log('🔍 Canvas ref exists?', !!canvasRef.current);
-      console.log('🔍 Model ref exists?', !!faceDetectionModelRef.current);
+      console.log('🔍 Models loaded?', modelsLoadedRef.current);
       
-      if (!videoRef.current || !canvasRef.current || !faceDetectionModelRef.current) {
-        // Fallback to simulation if model not loaded
-        console.warn('⚠️ Model not loaded, using fallback');
-        const fallback = analyzeMoodFallback();
-        console.log('🔄 Returning fallback:', fallback);
-        return fallback;
+      if (!videoRef.current) {
+        throw new Error('Video element not available');
       }
       
-      console.log('✅ All refs available, proceeding with detection');
-
+      if (!modelsLoadedRef.current) {
+        throw new Error('Face detection models not loaded');
+      }
+      
       const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-
-      if (!ctx) {
-        console.warn('⚠️ No canvas context, using fallback');
-        return analyzeMoodFallback();
-      }
       
+      // Wait for video to be ready
       if (video.readyState !== video.HAVE_ENOUGH_DATA) {
-        console.warn('⚠️ Video not ready, readyState:', video.readyState, 'using fallback');
-        return analyzeMoodFallback();
+        throw new Error('Video stream not ready. Please ensure your camera is working properly.');
       }
 
       console.log('✅ Video is ready, dimensions:', video.videoWidth, 'x', video.videoHeight);
 
-      // Set canvas dimensions
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      // Draw current video frame to canvas
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      console.log('✅ Video frame drawn to canvas');
-
-      // Detect faces
-      console.log('🔍 Starting face detection...');
+      // Detect face with expressions using face-api.js
+      // Try multiple frames for better accuracy (average results)
+      console.log('🔍 Starting face detection with emotion recognition...');
       const startTime = Date.now();
-      const faces = await faceDetectionModelRef.current.estimateFaces(canvas, {
-        flipHorizontal: false,
-        staticImageMode: false,
+      
+      const frameCount = 3; // Analyze 3 frames
+      const frameDelay = 200; // 200ms between frames
+      const detections: any[] = [];
+      
+      // Use more sensitive face detector options
+      const faceDetectorOptions = new faceapi.TinyFaceDetectorOptions({
+        inputSize: 512, // Higher resolution for better detection
+        scoreThreshold: 0.5 // Lower threshold to detect faces more easily
       });
+      
+      for (let i = 0; i < frameCount; i++) {
+        try {
+          const detection = await faceapi
+            .detectSingleFace(video, faceDetectorOptions)
+            .withFaceExpressions();
+          
+          if (detection && detection.expressions) {
+            detections.push(detection);
+            console.log(`📸 Frame ${i + 1}/${frameCount} detected`);
+          }
+          
+          // Wait before next frame (except for last frame)
+          if (i < frameCount - 1) {
+            await new Promise(resolve => setTimeout(resolve, frameDelay));
+          }
+        } catch (error) {
+          console.warn(`⚠️ Frame ${i + 1} detection failed:`, error);
+        }
+      }
+      
       const detectionTime = Date.now() - startTime;
-      console.log('👁️ Faces detected:', faces.length, 'in', detectionTime, 'ms');
+      console.log('👁️ Detection completed in', detectionTime, 'ms, got', detections.length, 'valid detections');
 
-      if (faces.length === 0) {
-        console.log('👤 No face detected in frame');
-        return analyzeMoodFallback();
+      if (detections.length === 0) {
+        throw new Error('No face detected. Please ensure your face is clearly visible in the camera with good lighting.');
       }
 
-      // Get the first detected face
-      const face = faces[0];
-      console.log('📋 Face object keys:', Object.keys(face));
-      console.log('📋 Face object:', face);
-
-      // Check different possible keypoint properties
-      let keypoints: faceLandmarksDetection.Keypoint[] | undefined;
-      
-      if (face.keypoints) {
-        keypoints = face.keypoints;
-        console.log('✅ Using face.keypoints');
-      } else if ((face as any).landmarks) {
-        keypoints = (face as any).landmarks;
-        console.log('✅ Using face.landmarks');
-      } else if ((face as any).scaledMesh) {
-        keypoints = (face as any).scaledMesh;
-        console.log('✅ Using face.scaledMesh');
-      } else {
-        console.error('❌ No keypoints found in face object!');
-        console.error('Face structure:', JSON.stringify(face, null, 2));
-        return analyzeMoodFallback();
-      }
-
-      // Log face detection details for debugging
-      if (!keypoints || keypoints.length === 0) {
-        console.warn('⚠️ Face detected but no keypoints returned');
-        console.warn('Keypoints value:', keypoints);
-        return analyzeMoodFallback();
-      }
-
-      console.log('👤 Face detected with', keypoints.length, 'keypoints');
-      console.log('📊 First keypoint sample:', keypoints[0]);
-
-      // Analyze facial features to determine mood
-      console.log('🔍 About to call analyzeFacialFeatures with', keypoints.length, 'keypoints');
-      const moodResult = analyzeFacialFeatures(keypoints);
-      
-      console.log('🔍 Real mood detected:', moodResult);
-      console.log('🔍 Mood result type:', typeof moodResult);
-      console.log('🔍 Mood result has mood?', !!moodResult?.mood);
-      console.log('🔍 Mood result mood value:', moodResult?.mood);
-      
-      // GUARANTEE a valid result
-      if (!moodResult || !moodResult.mood) {
-        console.error('❌ analyzeFacialFeatures returned invalid result, using fallback');
-        return analyzeMoodFallback();
-      }
-      
-      return moodResult;
-    } catch (error) {
-      console.error('❌ Error in mood analysis:', error);
-      // Fallback to simulation on error
-      return analyzeMoodFallback();
-    }
-  };
-
-  // Fallback mood detection (simulation)
-  const analyzeMoodFallback = (): { mood: string; confidence: number } => {
-    const moods = ['happy', 'sad', 'excited', 'relaxed', 'focused'];
-    const randomMood = moods[Math.floor(Math.random() * moods.length)];
-    const confidenceScore = 0.70 + Math.random() * 0.25;
-    
-    console.log('🎲 Using fallback mood detection:', { mood: randomMood, confidence: confidenceScore });
-    console.log('🎲 Fallback result will be returned and set to state');
-    return { mood: randomMood, confidence: confidenceScore };
-  };
-
-  // Analyze facial features to determine mood
-  const analyzeFacialFeatures = (keypoints: faceLandmarksDetection.Keypoint[]): { mood: string; confidence: number } => {
-    try {
-      console.log('🔬 Starting facial feature analysis...');
-      console.log('📊 Keypoints array length:', keypoints?.length);
-      console.log('📊 First few keypoints:', keypoints?.slice(0, 3));
-      
-      // MediaPipe Face Mesh has 468 landmarks (0-indexed)
-      // Correct landmark indices:
-      // Mouth: 61 (left corner), 291 (right corner), 13 (upper lip top), 14 (upper lip bottom), 17 (lower lip top), 18 (lower lip bottom)
-      // Eyes: 33 (left eye inner), 133 (left eye outer), 362 (right eye inner), 263 (right eye outer)
-      // Nose: 4 (nose tip), 19 (nose bridge)
-      
-      if (!keypoints || keypoints.length < 200) {
-        console.warn('⚠️ Insufficient keypoints detected:', keypoints?.length || 0);
-        return analyzeMoodFallback();
-      }
-
-      // Get key facial landmark points - use proper MediaPipe Face Mesh indices
-      const leftMouthCorner = keypoints[61];
-      const rightMouthCorner = keypoints[291];
-      const upperLipTop = keypoints[13];
-      const upperLipBottom = keypoints[14];
-      const lowerLipTop = keypoints[17];
-      const lowerLipBottom = keypoints[18];
-      
-      // Eye landmarks - corrected indices
-      const leftEyeInner = keypoints[33];
-      const leftEyeOuter = keypoints[133];
-      const rightEyeInner = keypoints[362];
-      const rightEyeOuter = keypoints[263];
-      
-      // Nose for face orientation
-      const noseTip = keypoints[4];
-      const noseBridge = keypoints[19];
-
-      // Validate all required keypoints exist
-      if (!leftMouthCorner || !rightMouthCorner || !upperLipTop || !lowerLipTop ||
-          !leftEyeInner || !rightEyeInner || !leftEyeOuter || !rightEyeOuter ||
-          !noseTip || !noseBridge) {
-        console.warn('⚠️ Missing required keypoints', {
-          hasMouth: !!(leftMouthCorner && rightMouthCorner),
-          hasEyes: !!(leftEyeInner && rightEyeInner),
-          hasNose: !!noseTip,
-          keypointsLength: keypoints.length
+      // Average expressions across all frames for more accurate results
+      const emotionSums: { [key: string]: number } = {};
+      detections.forEach(detection => {
+        Object.entries(detection.expressions).forEach(([emotion, probability]) => {
+          emotionSums[emotion] = (emotionSums[emotion] || 0) + (probability as number);
         });
-        return analyzeMoodFallback();
-      }
-
-      // Normalize coordinates to face size (use eye distance as reference)
-      const eyeDistance = Math.sqrt(
-        Math.pow(rightEyeInner.x - leftEyeInner.x, 2) +
-        Math.pow(rightEyeInner.y - leftEyeInner.y, 2)
-      );
+      });
       
-      if (eyeDistance < 0.01) {
-        console.warn('⚠️ Invalid eye distance, face too small or not detected properly');
-        return analyzeMoodFallback();
-      }
-
-      // Calculate mouth width (normalized to face size)
-      const mouthWidth = Math.sqrt(
-        Math.pow(rightMouthCorner.x - leftMouthCorner.x, 2) +
-        Math.pow(rightMouthCorner.y - leftMouthCorner.y, 2)
-      ) / eyeDistance;
-
-      // Calculate mouth height (normalized)
-      const mouthTopY = (upperLipTop.y + upperLipBottom.y) / 2;
-      const mouthBottomY = (lowerLipTop.y + lowerLipBottom.y) / 2;
-      const mouthHeight = Math.abs(mouthBottomY - mouthTopY) / eyeDistance;
-
-      // Smile detection: ratio of width to height (higher = wider smile)
-      const smileRatio = mouthWidth / (mouthHeight + 0.001);
-
-      // Calculate mouth curvature (upward curve = smile, downward = frown)
-      const mouthCenterY = (leftMouthCorner.y + rightMouthCorner.y) / 2;
-      const lipTopY = (upperLipTop.y + upperLipBottom.y) / 2;
-      const lipBottomY = (lowerLipTop.y + lowerLipBottom.y) / 2;
-      const mouthCenterLipY = (lipTopY + lipBottomY) / 2;
+      const expressions: { [key: string]: number } = {};
+      Object.keys(emotionSums).forEach(emotion => {
+        expressions[emotion] = emotionSums[emotion] / detections.length;
+      });
       
-      // Positive curvature means mouth corners are higher than center (smile)
-      // Negative means corners are lower (frown)
-      const mouthCurvature = (mouthCenterY - mouthCenterLipY) / eyeDistance;
+      // Log all emotions with their probabilities for debugging
+      console.log('😊 All detected expressions (averaged across', detections.length, 'frames):');
+      Object.entries(expressions)
+        .sort((a, b) => b[1] - a[1])
+        .forEach(([emotion, prob]) => {
+          console.log(`   ${emotion}: ${(prob * 100).toFixed(1)}%`);
+        });
 
-      // Eye opening (normalized to face size)
-      const leftEyeOpening = Math.sqrt(
-        Math.pow(leftEyeOuter.x - leftEyeInner.x, 2) +
-        Math.pow(leftEyeOuter.y - leftEyeInner.y, 2)
-      ) / eyeDistance;
+      // Improved emotion detection logic
+      // Sort emotions by probability
+      const sortedEmotions = Object.entries(expressions)
+        .map(([emotion, probability]) => ({ emotion, probability }))
+        .sort((a, b) => b.probability - a.probability);
       
-      const rightEyeOpening = Math.sqrt(
-        Math.pow(rightEyeOuter.x - rightEyeInner.x, 2) +
-        Math.pow(rightEyeOuter.y - rightEyeInner.y, 2)
-      ) / eyeDistance;
+      const topEmotion = sortedEmotions[0];
+      const secondEmotion = sortedEmotions[1];
       
-      const avgEyeOpening = (leftEyeOpening + rightEyeOpening) / 2;
-
-      // Eyebrow position (for sad/concerned detection)
-      // Use landmark 107 (left eyebrow outer) and 336 (right eyebrow outer) if available
-      const leftEyebrow = keypoints[107] || leftEyeInner;
-      const rightEyebrow = keypoints[336] || rightEyeInner;
-      const eyebrowPosition = ((leftEyebrow.y + rightEyebrow.y) / 2 - (leftEyeInner.y + rightEyeInner.y) / 2) / eyeDistance;
-
-      // Mouth position relative to eyes (lower = sadder appearance)
-      const eyeCenterY = (leftEyeInner.y + rightEyeInner.y) / 2;
-      const mouthRelativePosition = (mouthCenterLipY - eyeCenterY) / eyeDistance;
-
-      // Log detailed analysis for debugging
-      console.log('📊 Detailed facial analysis:', {
-        smileRatio: smileRatio.toFixed(3),
-        mouthCurvature: mouthCurvature.toFixed(3),
-        eyeOpening: avgEyeOpening.toFixed(3),
-        mouthPosition: mouthRelativePosition.toFixed(3),
-        eyebrowPosition: eyebrowPosition.toFixed(3),
-        mouthWidth: mouthWidth.toFixed(3),
-        mouthHeight: mouthHeight.toFixed(3)
+      console.log('📊 Top emotions:', {
+        first: `${topEmotion.emotion} (${topEmotion.probability.toFixed(3)})`,
+        second: secondEmotion ? `${secondEmotion.emotion} (${secondEmotion.probability.toFixed(3)})` : 'N/A'
       });
 
-      // Determine mood based on facial features with MORE SENSITIVE thresholds
-      // Made thresholds more responsive to detect smaller changes
-      let mood = 'relaxed';
-      let confidence = 0.7;
-
-      // EXCITED: Very wide smile, high curvature, wide eyes (lowered threshold)
-      if (smileRatio > 2.8 && mouthCurvature > 0.015 && avgEyeOpening > 0.075) {
-        mood = 'excited';
-        confidence = Math.min(0.95, 0.8 + (smileRatio - 2.8) * 0.1);
-      }
-      // HAPPY: Wide smile, positive curvature (lowered threshold for more sensitivity)
-      else if (smileRatio > 2.0 && mouthCurvature > 0.008) {
-        mood = 'happy';
-        confidence = Math.min(0.95, 0.75 + (smileRatio - 2.0) * 0.15);
-      }
-      // SAD: Narrow mouth, negative curvature (frown) (more sensitive)
-      else if (smileRatio < 2.0 && mouthCurvature < -0.003) {
-        mood = 'sad';
-        confidence = Math.min(0.9, 0.7 + Math.abs(mouthCurvature) * 25);
-      }
-      // FOCUSED: Neutral mouth, slightly narrowed eyes (expanded range)
-      else if (smileRatio >= 1.9 && smileRatio <= 2.3 && 
-               avgEyeOpening >= 0.055 && avgEyeOpening <= 0.085 &&
-               Math.abs(mouthCurvature) < 0.012) {
-        mood = 'focused';
-        confidence = 0.75;
-      }
-      // RELAXED: Slight smile, calm features (default - expanded range)
-      else {
-        mood = 'relaxed';
-        confidence = 0.7;
-      }
+      // Aggressive positive emotion detection - prioritize happy, excited, etc. over neutral
+      const happyProb = expressions.happy || 0;
+      const neutralProb = expressions.neutral || 0;
+      const surprisedProb = expressions.surprised || 0;
+      const sadProb = expressions.sad || 0;
+      const angryProb = expressions.angry || 0;
+      const fearfulProb = expressions.fearful || 0;
+      const disgustedProb = expressions.disgusted || 0;
       
-      console.log('🎯 Mood classification:', {
-        smileRatio: smileRatio.toFixed(3),
-        mouthCurvature: mouthCurvature.toFixed(3),
-        eyeOpening: avgEyeOpening.toFixed(3),
-        detectedMood: mood,
-        confidence: confidence.toFixed(2)
-      });
+      // Priority order: happy > surprised > neutral > sad > others
+      // If happy is above 0.15 (even if not highest), prefer it over neutral
+      let selectedEmotion = topEmotion.emotion;
+      let selectedConfidence = topEmotion.probability;
+      
+      // Combine happy and surprised probabilities (smiling can register as both)
+      const combinedPositiveProb = happyProb + surprisedProb * 0.7; // Weight surprised slightly less
+      
+      // Rule 1: If combined positive (happy + surprised) is significant, prefer happy
+      if (combinedPositiveProb >= 0.2 || happyProb >= 0.15) {
+        // Only override if a negative emotion is significantly higher
+        const maxNegative = Math.max(sadProb, angryProb, fearfulProb, disgustedProb);
+        if (happyProb >= maxNegative * 0.5 || combinedPositiveProb >= maxNegative * 0.7) {
+          selectedEmotion = 'happy';
+          selectedConfidence = Math.max(happyProb, combinedPositiveProb);
+          console.log('✅ Happy/positive detected (happy:', happyProb.toFixed(3), 'surprised:', surprisedProb.toFixed(3), 'combined:', combinedPositiveProb.toFixed(3), '), preferring over', topEmotion.emotion);
+        }
+      }
+      // Rule 2: If surprised is above 0.2, prefer it (excited mood)
+      else if (surprisedProb >= 0.2 && surprisedProb > neutralProb * 0.6) {
+        selectedEmotion = 'surprised';
+        selectedConfidence = surprisedProb;
+        console.log('✅ Surprised (excited) detected, preferring over', topEmotion.emotion);
+      }
+      // Rule 3: If neutral is top but happy is present at all, prefer happy (very aggressive)
+      else if (topEmotion.emotion === 'neutral' && happyProb > 0.08) {
+        // If happy is even slightly present, prefer it over neutral
+        selectedEmotion = 'happy';
+        selectedConfidence = Math.max(happyProb, 0.3); // Boost confidence for happy
+        console.log('✅ Neutral detected but happy present, preferring happy (happy:', happyProb.toFixed(3), 'neutral:', neutralProb.toFixed(3), ')');
+      }
+      // Rule 4: If neutral confidence is low (< 0.6) and any positive emotion exists, use it
+      else if (topEmotion.emotion === 'neutral' && topEmotion.probability < 0.6) {
+        if (happyProb > 0.08) {
+          selectedEmotion = 'happy';
+          selectedConfidence = Math.max(happyProb, 0.3);
+          console.log('✅ Low neutral confidence, using happy instead');
+        } else if (surprisedProb > 0.12) {
+          selectedEmotion = 'surprised';
+          selectedConfidence = surprisedProb;
+          console.log('✅ Low neutral confidence, using surprised instead');
+        }
+      }
+      // Rule 5: If happy is the second highest and close to top, prefer it
+      else if (secondEmotion && secondEmotion.emotion === 'happy' && (topEmotion.probability - secondEmotion.probability) < 0.15) {
+        selectedEmotion = 'happy';
+        selectedConfidence = secondEmotion.probability;
+        console.log('✅ Happy is close second, preferring it over', topEmotion.emotion);
+      }
 
-      console.log('✅ Mood determined:', mood, 'confidence:', confidence.toFixed(2));
-      return { mood, confidence };
-    } catch (error) {
-      console.error('❌ Error analyzing facial features:', error);
-      return analyzeMoodFallback();
+      console.log('🎯 Selected emotion:', selectedEmotion, 'confidence:', selectedConfidence.toFixed(3));
+
+      // Enhanced detection: Check if we can detect "excited", "relaxed", or "focused" as separate moods
+      // BUT preserve base emotions (surprised, angry, etc.) when they are clearly detected
+      // These moods are in manual selection and should be detectable from camera
+      let finalEmotion = selectedEmotion;
+      let finalConfidence = selectedConfidence;
+      
+      // Priority: Check base emotions first (surprised, angry, etc.) before enhanced moods
+      // This ensures "surprised" and "angry" can be detected directly
+      
+      // Detect "surprised" directly when it's clearly surprised (not excited)
+      // Surprised should be detected when surprised is the top emotion and has reasonable confidence
+      // OR when surprised is high but doesn't have strong happy component (indicating pure surprise, not excitement)
+      if ((selectedEmotion === 'surprised' && surprisedProb >= 0.25) || 
+          (surprisedProb >= 0.3 && happyProb < 0.2 && surprisedProb > neutralProb)) {
+        // Clear surprised emotion = surprised mood (not excited)
+        finalEmotion = 'surprised';
+        finalConfidence = surprisedProb;
+        console.log('😲 Surprised mood detected directly! (surprised:', surprisedProb.toFixed(3), 'happy:', happyProb.toFixed(3), ')');
+      }
+      // Detect "angry" directly when it's clearly angry (not focused)
+      // Angry should be detected when angry is the top emotion or when it's clearly dominant
+      else if ((selectedEmotion === 'angry' && angryProb >= 0.25) || 
+               (angryProb >= 0.3 && angryProb > Math.max(fearfulProb, disgustedProb) * 1.1 && angryProb > neutralProb)) {
+        // Clear angry emotion = angry mood (not focused)
+        finalEmotion = 'angry';
+        finalConfidence = angryProb;
+        console.log('😠 Angry mood detected directly! (angry:', angryProb.toFixed(3), 'fearful:', fearfulProb.toFixed(3), 'disgusted:', disgustedProb.toFixed(3), ')');
+      }
+      // Detect "fearful" directly when it's clearly fearful (not focused)
+      // Fearful should be detected when fearful is the top emotion or when it's clearly dominant
+      else if ((selectedEmotion === 'fearful' && fearfulProb >= 0.25) || 
+               (fearfulProb >= 0.3 && fearfulProb > Math.max(angryProb, disgustedProb) * 1.1 && fearfulProb > neutralProb)) {
+        // Clear fearful emotion = fearful mood (not focused)
+        finalEmotion = 'fearful';
+        finalConfidence = fearfulProb;
+        console.log('😨 Fearful mood detected directly! (fearful:', fearfulProb.toFixed(3), 'angry:', angryProb.toFixed(3), 'disgusted:', disgustedProb.toFixed(3), ')');
+      }
+      // Detect "disgusted" directly when it's clearly disgusted (not focused)
+      // Disgusted should be detected when disgusted is the top emotion or when it's clearly dominant
+      else if ((selectedEmotion === 'disgusted' && disgustedProb >= 0.25) || 
+               (disgustedProb >= 0.3 && disgustedProb > Math.max(angryProb, fearfulProb) * 1.1 && disgustedProb > neutralProb)) {
+        // Clear disgusted emotion = disgusted mood (not focused)
+        finalEmotion = 'disgusted';
+        finalConfidence = disgustedProb;
+        console.log('🤢 Disgusted mood detected directly! (disgusted:', disgustedProb.toFixed(3), 'angry:', angryProb.toFixed(3), 'fearful:', fearfulProb.toFixed(3), ')');
+      }
+      // Detect "excited" mood: high surprised + positive energy (happy component)
+      // Excited is a manual selection mood that should be detectable
+      // Only detect excited if surprised is high AND has positive energy (not just pure surprise)
+      // This should come AFTER checking for pure "surprised"
+      else if (surprisedProb >= 0.3 && (happyProb > 0.15 || surprisedProb > 0.5)) {
+        // High surprised with positive energy = excited mood
+        finalEmotion = 'excited';
+        finalConfidence = Math.max(surprisedProb, (surprisedProb + happyProb) / 2);
+        console.log('🎉 Excited mood detected! (surprised:', surprisedProb.toFixed(3), 'happy:', happyProb.toFixed(3), ')');
+      }
+      // Detect "relaxed" mood: high neutral + low negative emotions
+      // Relaxed is a manual selection mood that should be detectable
+      else if (neutralProb >= 0.5 && Math.max(angryProb, fearfulProb, disgustedProb, sadProb) < 0.2) {
+        // High neutral with low negative = relaxed mood
+        finalEmotion = 'relaxed';
+        finalConfidence = neutralProb;
+        console.log('😌 Relaxed mood detected! (neutral:', neutralProb.toFixed(3), ')');
+      }
+      // Detect "focused" mood: high concentration (angry/fearful/disgusted with specific pattern)
+      // Focused is a manual selection mood that should be detectable
+      // Only detect focused if concentration emotions are high but no single emotion is clearly dominant
+      // This should NOT override clearly detected "angry", "fearful", or "disgusted"
+      // Check if we've already detected a specific emotion - if so, don't override with "focused"
+      const hasDetectedSpecificEmotion = finalEmotion === 'angry' || finalEmotion === 'fearful' || finalEmotion === 'disgusted';
+      
+      if (!hasDetectedSpecificEmotion && 
+          (angryProb >= 0.3 || fearfulProb >= 0.3 || disgustedProb >= 0.3) && 
+          neutralProb < 0.4 && happyProb < 0.15 &&
+          // Only detect focused if no single emotion is clearly dominant (within 30% of each other)
+          Math.max(angryProb, fearfulProb, disgustedProb) <= Math.max(fearfulProb, disgustedProb, angryProb) * 1.3) {
+        // High concentration emotions with low neutral/happy and no single dominant emotion = focused mood
+        const concentrationProb = Math.max(angryProb, fearfulProb, disgustedProb);
+        finalEmotion = 'focused';
+        finalConfidence = concentrationProb;
+        console.log('🤔 Focused mood detected! (concentration:', concentrationProb.toFixed(3), ')');
+      }
+
+      // Map emotion to app mood
+      const moodResult = mapEmotionToMood(finalEmotion, finalConfidence);
+      console.log('✅ Mapped to mood:', moodResult.mood, 'confidence:', moodResult.confidence.toFixed(3));
+      
+      // Return both the backend mood and the display mood (which should match manual selection)
+      // All manual selection moods: happy, sad, excited, surprised, relaxed, neutral, focused, angry, fearful, disgusted
+      // Use the finalEmotion directly as display mood if it's one of the manual selection moods
+      // Otherwise, use displayMood from mapping
+      const manualSelectionMoods = ['happy', 'sad', 'excited', 'surprised', 'relaxed', 'neutral', 'focused', 'angry', 'fearful', 'disgusted'];
+      const displayMood = manualSelectionMoods.includes(finalEmotion) 
+        ? finalEmotion 
+        : (moodResult.displayMood || finalEmotion);
+      
+      console.log('📺 Final display mood:', displayMood, '(detected:', finalEmotion, ', backend:', moodResult.mood, ')');
+      
+      return {
+        mood: moodResult.mood, // Backend mood (happy, sad, excited, relaxed, focused)
+        confidence: moodResult.confidence,
+        originalEmotion: displayMood, // Display mood that matches manual selection (all 10 moods: happy, sad, excited, surprised, relaxed, neutral, focused, angry, fearful, disgusted)
+      };
+    } catch (error: any) {
+      console.error('❌ Error in mood analysis:', error);
+      const errorMessage = error?.message || 'Failed to detect mood from facial expression';
+      throw new Error(errorMessage);
     }
   };
 
@@ -532,13 +532,15 @@ const AIMode: React.FC = () => {
     hasNavigatedRef.current = false;
     setTracksFetched(false);
     
-    // Initial detection after short delay
+    // Initial detection after 4 seconds delay
     setTimeout(async () => {
-      console.log('⏰ Initial detection timeout fired. isDetecting:', isDetecting, 'videoRef:', !!videoRef.current);
+      // Use ref to get current detecting state (avoids closure issues)
+      const currentlyDetecting = isDetectingRef.current;
+      console.log('⏰ Initial detection timeout fired (4 seconds). isDetecting:', currentlyDetecting, 'videoRef:', !!videoRef.current);
       console.log('⏰ Current mood state:', mood);
       console.log('⏰ Current mood ref:', currentMoodRef.current);
       
-      if (isDetecting && videoRef.current) {
+      if (currentlyDetecting && videoRef.current) {
         try {
           console.log('🎯 About to call analyzeMood()...');
           const result = await analyzeMood();
@@ -547,71 +549,171 @@ const AIMode: React.FC = () => {
           
           // ALWAYS set mood, even if from fallback - FORCE IT
           if (result && result.mood) {
-            console.log('✅ Setting mood state to:', result.mood);
-            console.log('✅ Before setMood - current mood:', mood);
-            setMood(result.mood);
-            setConfidence(result.confidence);
-            currentMoodRef.current = result.mood; // Update ref immediately
-            console.log('✅ After setMood - ref updated to:', currentMoodRef.current);
+            console.log('✅ Mood detected:', result.mood);
             
-            // Force React to re-render by updating confidence too
-            setTimeout(() => {
-              console.log('🔄 Verifying mood was set - checking state...');
-              console.log('🔄 Current mood ref:', currentMoodRef.current);
-            }, 100);
+            // IMMEDIATELY stop camera as soon as mood is detected
+            console.log('📹 Stopping camera immediately after mood detection');
+            
+            // Hide camera immediately with direct DOM manipulation (faster than state update)
+            if (videoRef.current) {
+              videoRef.current.style.display = 'none';
+            }
+            if (canvasRef.current) {
+              canvasRef.current.style.display = 'none';
+            }
+            
+            // Hide camera immediately by updating state
+            setShowCamera(false);
+            isDetectingRef.current = false;
+            setIsDetecting(false);
+            
+            // Stop video stream immediately
+            if (videoRef.current) {
+              // Pause the video first
+              videoRef.current.pause();
+              
+              // Stop all tracks
+              if (videoRef.current.srcObject) {
+                const stream = videoRef.current.srcObject as MediaStream;
+                stream.getTracks().forEach(track => {
+                  track.stop();
+                  console.log('🛑 Video track stopped:', track.kind);
+                });
+                videoRef.current.srcObject = null;
+              }
+              
+              // Clear the video source to ensure it's completely stopped
+              videoRef.current.src = '';
+              videoRef.current.load();
+            }
+            
+            // Stop the detection interval to prevent fluctuation
+            if (detectionIntervalRef.current) {
+              console.log('🛑 Stopping detection interval');
+              clearInterval(detectionIntervalRef.current);
+              detectionIntervalRef.current = null;
+            }
+            
+            // Now set mood state after camera is stopped
+            // Use original emotion for display if available, otherwise use mapped mood
+            const displayMood = result.originalEmotion || result.mood;
+            setMood(displayMood); // Store original emotion for display
+            setConfidence(result.confidence);
+            currentMoodRef.current = displayMood; // Store original emotion in ref for stopDetection
+            setMoodChangeCount(prev => prev + 1); // Track mood detection
+            console.log('✅ Mood state set to:', displayMood, '(original emotion)');
+            console.log('✅ Backend mood for API:', result.mood);
             
             // Fetch music for initial mood detection and auto-navigate to player on first success
             const shouldNavigate = !hasNavigatedRef.current;
             console.log('🚀 Triggering initial music fetch for:', result.mood, 'Auto-navigate?', shouldNavigate);
-            lastFetchedMoodRef.current = result.mood;
-            fetchMusicFromSpotify(result.mood, shouldNavigate);
+            lastFetchedMoodRef.current = displayMood;
+            fetchMusicFromSpotify(result.mood, shouldNavigate, displayMood);
           } else {
             console.error('❌ Initial detection returned invalid result:', result);
-            // Even if invalid, try to use fallback explicitly
-            const fallbackResult = analyzeMoodFallback();
-            console.log('🔄 Using explicit fallback:', fallbackResult.mood);
-            console.log('🔄 FORCE SETTING MOOD TO:', fallbackResult.mood);
-            setMood(fallbackResult.mood);
-            setConfidence(fallbackResult.confidence);
-            currentMoodRef.current = fallbackResult.mood;
-            lastFetchedMoodRef.current = fallbackResult.mood;
-            const shouldNavigate = !hasNavigatedRef.current;
-            fetchMusicFromSpotify(fallbackResult.mood, shouldNavigate);
+            
+            // Stop camera with direct DOM manipulation
+            if (videoRef.current) {
+              videoRef.current.style.display = 'none';
+            }
+            if (canvasRef.current) {
+              canvasRef.current.style.display = 'none';
+            }
+            
+            // Stop camera
+            setShowCamera(false);
+            isDetectingRef.current = false;
+            setIsDetecting(false);
+            
+            if (videoRef.current) {
+              videoRef.current.pause();
+              if (videoRef.current.srcObject) {
+                const stream = videoRef.current.srcObject as MediaStream;
+                stream.getTracks().forEach(track => track.stop());
+                videoRef.current.srcObject = null;
+              }
+              videoRef.current.src = '';
+              videoRef.current.load();
+            }
+            
+            if (detectionIntervalRef.current) {
+              clearInterval(detectionIntervalRef.current);
+              detectionIntervalRef.current = null;
+            }
+            
+            // Show error instead of using fallback
+            const errorMsg = 'Mood detection returned invalid result. Please try again.';
+            setError(errorMsg);
+            toast.error(errorMsg, {
+              position: 'top-right',
+              autoClose: 5000,
+            });
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error('❌ Error in initial detection:', error);
-          console.error('❌ Error details:', error);
-          // Use fallback on error - FORCE IT
-          const fallbackResult = analyzeMoodFallback();
-          console.log('🔄 FORCE SETTING MOOD ON ERROR TO:', fallbackResult.mood);
-          setMood(fallbackResult.mood);
-          setConfidence(fallbackResult.confidence);
-          currentMoodRef.current = fallbackResult.mood;
-          lastFetchedMoodRef.current = fallbackResult.mood;
-          const shouldNavigate = !hasNavigatedRef.current;
-          fetchMusicFromSpotify(fallbackResult.mood, shouldNavigate);
+          const errorMessage = error?.message || 'Failed to detect mood from facial expression';
+          
+          // Stop camera on error with direct DOM manipulation
+          if (videoRef.current) {
+            videoRef.current.style.display = 'none';
+          }
+          if (canvasRef.current) {
+            canvasRef.current.style.display = 'none';
+          }
+          
+          // Stop camera
+          setShowCamera(false);
+          isDetectingRef.current = false;
+          setIsDetecting(false);
+          
+          if (videoRef.current) {
+            videoRef.current.pause();
+            if (videoRef.current.srcObject) {
+              const stream = videoRef.current.srcObject as MediaStream;
+              stream.getTracks().forEach(track => track.stop());
+              videoRef.current.srcObject = null;
+            }
+            videoRef.current.src = '';
+            videoRef.current.load();
+          }
+          
+          if (detectionIntervalRef.current) {
+            clearInterval(detectionIntervalRef.current);
+            detectionIntervalRef.current = null;
+          }
+          
+          // Show error instead of using fallback
+          setError(errorMessage);
+          toast.error(errorMessage + ' Please try again.', {
+            position: 'top-right',
+            autoClose: 5000,
+          });
         }
       } else {
-        console.warn('⚠️ Initial detection skipped - isDetecting:', isDetecting, 'hasVideo:', !!videoRef.current);
-        // Even if skipped, set a fallback mood
-        const fallbackResult = analyzeMoodFallback();
-        console.log('🔄 Detection skipped, but setting fallback mood:', fallbackResult.mood);
-        setMood(fallbackResult.mood);
-        setConfidence(fallbackResult.confidence);
+        console.warn('⚠️ Initial detection skipped - isDetecting:', currentlyDetecting, 'hasVideo:', !!videoRef.current);
+        // Show warning instead of using fallback
+        const errorMsg = 'Detection was skipped. Please ensure the camera is active and try again.';
+        setError(errorMsg);
+        toast.warning(errorMsg, {
+          position: 'top-right',
+          autoClose: 4000,
+        });
       }
-    }, 2000); // 2 second delay to allow video to stabilize
+    }, 4000); // 4 second delay to allow video to stabilize and detect mood
     
-    console.log('⏱️ Initial detection timer set for 2 seconds');
+    console.log('⏱️ Initial detection timer set for 4 seconds');
 
-    // Update canvas with video feed
+    // Update canvas with video feed (only while detecting)
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
 
       if (ctx) {
+        let animationFrameId: number | null = null;
         const drawFrame = () => {
-          if (video.readyState === video.HAVE_ENOUGH_DATA && isDetecting) {
+          // Use ref to check current detecting state - stop if not detecting
+          if (video.readyState === video.HAVE_ENOUGH_DATA && isDetectingRef.current) {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -624,122 +726,22 @@ const AIMode: React.FC = () => {
               ctx.strokeRect(canvas.width / 4, canvas.height / 4, canvas.width / 2, canvas.height / 2);
             }
             
-            requestAnimationFrame(drawFrame);
+            animationFrameId = requestAnimationFrame(drawFrame);
+          } else {
+            // Stop drawing if detection stopped
+            if (animationFrameId !== null) {
+              cancelAnimationFrame(animationFrameId);
+            }
           }
         };
         drawFrame();
       }
     }
 
-    // Continuously update mood detection
-    console.log('⏰ Setting up detection interval...');
-    console.log('⏰ Current isDetecting state:', isDetecting);
-    
-    // Clear any existing interval first
-    if (detectionIntervalRef.current) {
-      console.log('⏰ Clearing existing interval');
-      clearInterval(detectionIntervalRef.current);
-    }
-    
-    detectionIntervalRef.current = setInterval(async () => {
-      // Use ref to get current isDetecting value (avoid closure issues)
-      const currentlyDetecting = isDetectingRef.current;
-      console.log('⏰ ========== INTERVAL FIRED ==========');
-      console.log('⏰ isDetecting ref:', currentlyDetecting);
-      console.log('⏰ isDetecting state:', isDetecting);
-      console.log('⏰ Interval ID:', detectionIntervalRef.current);
-      
-      if (currentlyDetecting) {
-        try {
-          console.log('🔄 Interval: Starting mood analysis...');
-          console.log('🔄 Interval: Model loaded?', !!faceDetectionModelRef.current);
-          console.log('🔄 Interval: Video ready?', videoRef.current?.readyState);
-          console.log('🔄 Interval: Video dimensions?', videoRef.current?.videoWidth, 'x', videoRef.current?.videoHeight);
-          console.log('🔄 Interval: Current mood ref:', currentMoodRef.current);
-          console.log('🔄 Interval: Current mood state:', mood);
-          
-          const result = await analyzeMood();
-          console.log('🎭 Mood update detected:', result?.mood, 'Confidence:', result?.confidence);
-          console.log('🎭 Full result object:', result);
-          console.log('🎭 Previous mood was:', currentMoodRef.current);
-          
-          // ALWAYS set mood, even if from fallback or if result seems invalid
-          if (result && result.mood) {
-            const previousMood = currentMoodRef.current;
-            const moodChanged = result.mood !== previousMood;
-            
-            console.log('✅ Detected mood:', result.mood, 'Previous:', previousMood, moodChanged ? '(CHANGED!)' : '(same)');
-            console.log('📊 Confidence:', result.confidence);
-            
-            // ALWAYS update mood state - this ensures UI reflects current detection
-            // Use a small delay to ensure state updates are processed
-            setMood(result.mood);
-            setConfidence(result.confidence);
-            
-            // Force a re-render by updating a timestamp if mood changed
-            if (moodChanged) {
-              console.log('🔄 FORCING UI UPDATE - Mood changed!');
-            }
-            
-            // Update refs immediately
-            if (moodChanged) {
-              console.log('🔄 Mood changed from', previousMood, 'to', result.mood);
-              setMoodChangeCount(prev => prev + 1); // Force UI update
-            }
-            currentMoodRef.current = result.mood;
-            
-            // Fetch music only if mood changed and we haven't fetched for this mood yet
-            if (moodChanged && result.mood !== lastFetchedMoodRef.current) {
-              console.log('🔄 New mood detected, fetching music for:', result.mood);
-              lastFetchedMoodRef.current = result.mood;
-              // Fetch music but DON'T auto-navigate - let user see mood changes continuously
-              fetchMusicFromSpotify(result.mood, false);
-            } else if (!moodChanged) {
-              console.log('⏭️ Same mood as before:', result.mood);
-            } else {
-              console.log('🔄 Mood changed but already fetched music for:', result.mood);
-            }
-          } else {
-            console.warn('⚠️ No mood in result, using fallback:', result);
-            // Use fallback explicitly
-            const fallbackResult = analyzeMoodFallback();
-            console.log('🔄 Using explicit fallback in interval:', fallbackResult.mood);
-            const previousMood = currentMoodRef.current;
-            const moodChanged = fallbackResult.mood !== previousMood;
-            
-            // ALWAYS update mood state - this ensures UI reflects current detection
-            setMood(fallbackResult.mood);
-            setConfidence(fallbackResult.confidence);
-            
-            if (moodChanged) {
-              console.log('🔄 Fallback mood changed from', previousMood, 'to', fallbackResult.mood);
-              setMoodChangeCount(prev => prev + 1); // Force UI update
-            }
-            currentMoodRef.current = fallbackResult.mood;
-            
-            // Fetch music only if mood changed and we haven't fetched for this mood yet
-            if (moodChanged && fallbackResult.mood !== lastFetchedMoodRef.current) {
-              lastFetchedMoodRef.current = fallbackResult.mood;
-              // Don't auto-navigate on fallback in interval - let user see changes
-              fetchMusicFromSpotify(fallbackResult.mood, false);
-            }
-          }
-        } catch (error) {
-          console.error('❌ Error in mood detection interval:', error);
-          console.error('❌ Error stack:', (error as Error).stack);
-        }
-      } else {
-        console.log('⏸️ Detection stopped (isDetecting is false), but keeping interval running');
-        console.log('⏸️ This should not happen - isDetecting should be true');
-      }
-    }, 2000); // Update mood every 2 seconds for more responsive detection
-    
-    console.log('✅ Detection interval set up with ID:', detectionIntervalRef.current);
-    console.log('✅ Interval will fire every 2 seconds');
   };
 
   // Fetch music from Spotify based on detected mood and auto-navigate
-  const fetchMusicFromSpotify = async (detectedMood: string, shouldAutoNavigate: boolean = true) => {
+  const fetchMusicFromSpotify = async (detectedMood: string, shouldAutoNavigate: boolean = true, displayMood?: string) => {
     // Validate mood
     if (!detectedMood || detectedMood.trim() === '') {
       console.error('❌ Invalid mood provided:', detectedMood);
@@ -752,22 +754,22 @@ const AIMode: React.FC = () => {
 
     // Prevent multiple simultaneous API calls for the same mood
     if (isFetchingMusic) {
-      console.log('⏳ Already fetching music, skipping duplicate request');
       return;
     }
 
+    // Use displayMood for navigation if provided, otherwise use detectedMood
+    const moodForDisplay = displayMood || detectedMood;
+
     try {
-      console.log('🎵 Fetching music from Spotify for mood:', detectedMood);
       setIsFetchingMusic(true);
       setTracksFetched(false);
 
       const response = await getTracksByMood(detectedMood, 20, 'recommendations', 'spotify');
       
-      console.log('✅ Music fetched successfully from Spotify:', response.data.tracks.length);
       setFetchedTracksCount(response.data.tracks.length);
       setTracksFetched(true);
       
-      toast.success(`Found ${response.data.tracks.length} tracks for ${detectedMood} mood! 🎵`, {
+      toast.success(`Found ${response.data.tracks.length} tracks for ${moodForDisplay} mood! 🎵`, {
         position: 'top-right',
         autoClose: 2000,
       });
@@ -775,11 +777,11 @@ const AIMode: React.FC = () => {
       // Automatically navigate to player after successful music fetch
       if (shouldAutoNavigate && !hasNavigatedRef.current && response.data.tracks.length > 0) {
         hasNavigatedRef.current = true;
-        console.log('🚀 Music fetched successfully! Auto-navigating to player...');
         
         // Small delay to let user see the success message
         setTimeout(() => {
           // Stop detection before navigating
+          setShowCamera(false);
           isDetectingRef.current = false;
           setIsDetecting(false);
           
@@ -794,11 +796,9 @@ const AIMode: React.FC = () => {
             videoRef.current.srcObject = null;
           }
           
-          console.log('🎵 Auto-navigating to player with mood:', detectedMood);
-          navigate(`/player?mood=${detectedMood}`);
+          navigate(`/player?mood=${moodForDisplay}`);
         }, 1500); // 1.5 second delay to show success message
       } else if (shouldAutoNavigate && hasNavigatedRef.current) {
-        console.log('ℹ️ Auto-navigation already triggered, skipping duplicate navigation.');
       }
     } catch (error: any) {
       console.error('❌ Error fetching music from Spotify:', error);
@@ -832,6 +832,42 @@ const AIMode: React.FC = () => {
     }
   };
 
+  // Handle manual mood selection
+  const handleManualMoodSelection = async (selectedMood: string) => {
+    // Stop any ongoing camera detection
+    if (isDetecting) {
+      setShowCamera(false);
+      isDetectingRef.current = false;
+      setIsDetecting(false);
+      
+      if (detectionIntervalRef.current) {
+        clearInterval(detectionIntervalRef.current);
+        detectionIntervalRef.current = null;
+      }
+      
+      if (videoRef.current?.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
+    }
+    
+    // Set the selected mood (keep original emotion for display)
+    setMood(selectedMood);
+    setConfidence(1.0); // Manual selection has 100% confidence
+    currentMoodRef.current = selectedMood;
+    setMoodChangeCount(prev => prev + 1);
+    
+    // Map to backend-supported mood for API call
+    const backendMood = mapEmotionToBackendMood(selectedMood);
+    
+    // Fetch music and navigate to player
+    // Pass selectedMood as displayMood so the original emotion mood appears on Player page
+    hasNavigatedRef.current = false;
+    lastFetchedMoodRef.current = selectedMood;
+    await fetchMusicFromSpotify(backendMood, true, selectedMood);
+  };
+
   // Stop detection and navigate to player
   const stopDetection = (showToastOnNoMood: boolean = true) => {
     // IMPORTANT: Capture mood BEFORE stopping detection
@@ -849,6 +885,7 @@ const AIMode: React.FC = () => {
     hasNavigatedRef.current = true;
 
     // Now stop detection
+    setShowCamera(false); // Hide camera immediately
     isDetectingRef.current = false;
     setIsDetecting(false);
     
@@ -888,6 +925,7 @@ const AIMode: React.FC = () => {
   useEffect(() => {
     return () => {
       // Cleanup without showing toast (silent cleanup on unmount)
+      setShowCamera(false);
       isDetectingRef.current = false;
       setIsDetecting(false);
       
@@ -911,8 +949,13 @@ const AIMode: React.FC = () => {
       case 'happy': return '😊';
       case 'sad': return '😢';
       case 'excited': return '🎉';
+      case 'surprised': return '😲';
       case 'relaxed': return '😌';
+      case 'neutral': return '😐';
       case 'focused': return '🤔';
+      case 'angry': return '😠';
+      case 'fearful': return '😨';
+      case 'disgusted': return '🤢';
       default: return '😐';
     }
   };
@@ -922,9 +965,38 @@ const AIMode: React.FC = () => {
       case 'happy': return '#10B981'; // green
       case 'sad': return '#3B82F6'; // blue
       case 'excited': return '#EC4899'; // pink
+      case 'surprised': return '#F59E0B'; // amber/orange
       case 'relaxed': return '#8B5CF6'; // purple
+      case 'neutral': return '#6B7280'; // gray
       case 'focused': return '#F59E0B'; // amber
+      case 'angry': return '#EF4444'; // red
+      case 'fearful': return '#8B5CF6'; // purple (similar to relaxed)
+      case 'disgusted': return '#84CC16'; // lime green
       default: return '#6B7280'; // gray
+    }
+  };
+
+  // Map emotion moods to backend-supported moods for API calls
+  const mapEmotionToBackendMood = (emotionMood: string): string => {
+    // Backend supports: happy, sad, excited, relaxed, focused
+    switch (emotionMood) {
+      case 'happy':
+        return 'happy';
+      case 'sad':
+        return 'sad';
+      case 'excited':
+      case 'surprised':
+        return 'excited';
+      case 'relaxed':
+      case 'neutral':
+        return 'relaxed';
+      case 'focused':
+      case 'angry':
+      case 'fearful':
+      case 'disgusted':
+        return 'focused';
+      default:
+        return 'relaxed';
     }
   };
 
@@ -948,9 +1020,127 @@ const AIMode: React.FC = () => {
             AI Mood Detection
           </h1>
           <p className="text-sm sm:text-base text-white/70 max-w-2xl mx-auto">
-            Let our AI analyze your facial expression to recommend the perfect music
+            Let our AI analyze your facial expression to recommend the perfect music, or select your mood manually
           </p>
         </div>
+
+        {/* Mode Selection Toggle */}
+        <div className="flex justify-center mb-6 sm:mb-8">
+          <div className="inline-flex rounded-full bg-white/5 border border-white/10 p-1">
+            <button
+              onClick={() => {
+                setSelectionMode('camera');
+                setError(null);
+                // Stop camera if switching away
+                if (isDetecting) {
+                  setShowCamera(false);
+                  isDetectingRef.current = false;
+                  setIsDetecting(false);
+                  if (videoRef.current?.srcObject) {
+                    const stream = videoRef.current.srcObject as MediaStream;
+                    stream.getTracks().forEach(track => track.stop());
+                    videoRef.current.srcObject = null;
+                  }
+                }
+              }}
+              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-full font-semibold text-xs sm:text-sm transition-all duration-200 ${
+                selectionMode === 'camera'
+                  ? 'bg-[#1DB954] text-white'
+                  : 'text-white/60 hover:text-white/80'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Camera Detection
+              </span>
+            </button>
+            <button
+              onClick={() => {
+                setSelectionMode('manual');
+                setError(null);
+                // Stop camera if switching away
+                if (isDetecting) {
+                  setShowCamera(false);
+                  isDetectingRef.current = false;
+                  setIsDetecting(false);
+                  if (videoRef.current?.srcObject) {
+                    const stream = videoRef.current.srcObject as MediaStream;
+                    stream.getTracks().forEach(track => track.stop());
+                    videoRef.current.srcObject = null;
+                  }
+                }
+              }}
+              className={`px-4 sm:px-6 py-2 sm:py-3 rounded-full font-semibold text-xs sm:text-sm transition-all duration-200 ${
+                selectionMode === 'manual'
+                  ? 'bg-[#1DB954] text-white'
+                  : 'text-white/60 hover:text-white/80'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                Manual Selection
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Manual Mood Selection */}
+        {selectionMode === 'manual' && (
+          <div className="mb-6 sm:mb-8">
+            <div className="rounded-xl sm:rounded-2xl p-6 sm:p-8 bg-white/5 border border-white/10">
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6 text-center">
+                Select Your Mood
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+                {[
+                  { mood: 'happy', emoji: '😊', color: '#10B981', label: 'Happy' },
+                  { mood: 'sad', emoji: '😢', color: '#3B82F6', label: 'Sad' },
+                  { mood: 'excited', emoji: '🎉', color: '#EC4899', label: 'Excited' },
+                  { mood: 'surprised', emoji: '😲', color: '#F59E0B', label: 'Surprised' },
+                  { mood: 'relaxed', emoji: '😌', color: '#8B5CF6', label: 'Relaxed' },
+                  { mood: 'neutral', emoji: '😐', color: '#6B7280', label: 'Neutral' },
+                  { mood: 'focused', emoji: '🤔', color: '#F59E0B', label: 'Focused' },
+                  { mood: 'angry', emoji: '😠', color: '#EF4444', label: 'Angry' },
+                  { mood: 'fearful', emoji: '😨', color: '#8B5CF6', label: 'Fearful' },
+                  { mood: 'disgusted', emoji: '🤢', color: '#84CC16', label: 'Disgusted' },
+                ].map(({ mood: moodValue, emoji, color, label }) => (
+                  <button
+                    key={moodValue}
+                    onClick={() => handleManualMoodSelection(moodValue)}
+                    disabled={isFetchingMusic}
+                    className="group relative rounded-xl sm:rounded-2xl p-4 sm:p-6 bg-white/5 border border-white/10 hover:border-white/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95"
+                    style={{
+                      borderColor: mood === moodValue ? color : undefined,
+                      boxShadow: mood === moodValue ? `0 0 20px ${color}40` : undefined,
+                    }}
+                  >
+                    <div className="text-4xl sm:text-5xl md:text-6xl mb-2 sm:mb-3">{emoji}</div>
+                    <div className="text-white font-semibold text-xs sm:text-sm">{label}</div>
+                    {isFetchingMusic && mood === moodValue && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-xl sm:rounded-2xl">
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {mood && selectionMode === 'manual' && (
+                <div className="mt-4 sm:mt-6 text-center">
+                  <p className="text-white/60 text-xs sm:text-sm">
+                    Selected: <span className="font-semibold text-white capitalize">{mood}</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {error ? (
           <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 sm:p-6 text-center mb-6">
@@ -958,7 +1148,8 @@ const AIMode: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-6 sm:space-y-8">
-            {/* Video Preview */}
+            {/* Video Preview - Only show in camera mode */}
+            {selectionMode === 'camera' && (
             <div className="relative rounded-xl sm:rounded-2xl overflow-hidden bg-white/5 border border-white/10"
             >
               <div className="relative">
@@ -968,15 +1159,15 @@ const AIMode: React.FC = () => {
                   playsInline
                   muted
                   className="w-full h-auto"
-                  style={{ display: isDetecting ? 'block' : 'none' }}
+                  style={{ display: showCamera ? 'block' : 'none' }}
                 />
                 <canvas
                   ref={canvasRef}
                   className="w-full h-auto absolute top-0 left-0"
-                  style={{ display: isDetecting ? 'block' : 'none' }}
+                  style={{ display: showCamera ? 'block' : 'none' }}
                 />
                 
-                {!isDetecting && (
+                {!showCamera && (
                   <div className="py-16 sm:py-24 md:py-32 text-center">
                     <div className="text-white/40 mb-4 relative">
                       <div className="absolute inset-0 flex items-center justify-center">
@@ -996,6 +1187,7 @@ const AIMode: React.FC = () => {
                 )}
               </div>
             </div>
+            )}
 
             {/* Mood Display - Always show if detecting or if mood is set */}
             {(mood || isDetecting) && (
@@ -1104,9 +1296,16 @@ const AIMode: React.FC = () => {
                   </div>
                 )}
                 
-                <p className="text-xs sm:text-sm text-white/40 mt-4 sm:mt-6 relative z-10">
-                  Mood is being detected continuously. Click "Stop Detection" to go to the player with your current mood.
-                </p>
+                {selectionMode === 'camera' && (
+                  <p className="text-xs sm:text-sm text-white/40 mt-4 sm:mt-6 relative z-10">
+                    Mood is being detected continuously. Click "Stop Detection" to go to the player with your current mood.
+                  </p>
+                )}
+                {selectionMode === 'manual' && mood && (
+                  <p className="text-xs sm:text-sm text-white/40 mt-4 sm:mt-6 relative z-10">
+                    Music is being fetched for your selected mood. You'll be redirected to the player shortly.
+                  </p>
+                )}
               </div>
             )}
 
@@ -1122,7 +1321,7 @@ const AIMode: React.FC = () => {
               </div>
             )}
             
-            {!modelLoadError && faceDetectionModelRef.current && (
+            {/* {!modelLoadError && faceDetectionModelRef.current && (
               <div className="bg-green-500/20 border border-green-500/50 rounded-xl p-3 sm:p-4 text-center">
                 <p className="text-green-400 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1131,9 +1330,10 @@ const AIMode: React.FC = () => {
                   AI Model Loaded Successfully
                 </p>
               </div>
-            )}
+            )} */}
 
-            {/* Controls */}
+            {/* Controls - Only show in camera mode */}
+            {selectionMode === 'camera' && (
             <div className="flex flex-col gap-4 sm:gap-6 items-center">
               <div className="flex gap-3 sm:gap-4 justify-center">
                 {!isDetecting ? (
@@ -1179,6 +1379,7 @@ const AIMode: React.FC = () => {
                 )}
               </div>
             </div>
+            )}
 
             {/* Instructions */}
             <div className="rounded-xl sm:rounded-2xl p-4 sm:p-6 bg-white/5 border border-white/10"
@@ -1189,28 +1390,49 @@ const AIMode: React.FC = () => {
                 </svg>
                 Instructions
               </h3>
-              <ul className="text-white/60 space-y-2 sm:space-y-3 text-xs sm:text-sm">
-                <li className="flex items-start gap-2 sm:gap-3">
-                  <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
-                  <span>Make sure you have good lighting</span>
-                </li>
-                <li className="flex items-start gap-2 sm:gap-3">
-                  <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
-                  <span>Position your face clearly in front of the camera</span>
-                </li>
-                <li className="flex items-start gap-2 sm:gap-3">
-                  <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
-                  <span>Allow camera permissions when prompted</span>
-                </li>
-                <li className="flex items-start gap-2 sm:gap-3">
-                  <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
-                  <span>The AI will analyze your facial expression to detect your mood</span>
-                </li>
-                <li className="flex items-start gap-2 sm:gap-3">
-                  <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
-                  <span>Once detected, you can start music based on your mood</span>
-                </li>
-              </ul>
+              {selectionMode === 'camera' ? (
+                <ul className="text-white/60 space-y-2 sm:space-y-3 text-xs sm:text-sm">
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>Make sure you have good lighting</span>
+                  </li>
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>Position your face clearly in front of the camera</span>
+                  </li>
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>Allow camera permissions when prompted</span>
+                  </li>
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>The AI will analyze your facial expression to detect your mood</span>
+                  </li>
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>Once detected, you can start music based on your mood</span>
+                  </li>
+                </ul>
+              ) : (
+                <ul className="text-white/60 space-y-2 sm:space-y-3 text-xs sm:text-sm">
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>Select the mood that best matches how you're feeling</span>
+                  </li>
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>Click on any mood card to start fetching music</span>
+                  </li>
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>You'll be automatically redirected to the player page</span>
+                  </li>
+                  <li className="flex items-start gap-2 sm:gap-3">
+                    <span className="text-purple-400 mt-0.5 sm:mt-1">•</span>
+                    <span>You can switch back to camera detection mode anytime</span>
+                  </li>
+                </ul>
+              )}
             </div>
           </div>
         )}
@@ -1220,4 +1442,5 @@ const AIMode: React.FC = () => {
 };
 
 export default AIMode;
+
 

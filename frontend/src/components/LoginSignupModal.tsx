@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../context';
 import { initiateGoogleAuth } from '../api/googleAuth.api';
@@ -41,7 +41,7 @@ const LoginSignupModal: React.FC<LoginSignupModalProps> = ({ isOpen, onClose, in
       onClick={onClose}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
       
       {/* Modal */}
       <div 
@@ -297,10 +297,19 @@ const LoginSignupModal: React.FC<LoginSignupModalProps> = ({ isOpen, onClose, in
                 />
               </div>
 
-              <div className="mb-4 sm:mb-6">
-                <label htmlFor="loginPassword" className="block text-xs sm:text-sm font-medium text-gray-300 mb-1.5 sm:mb-2">
-                  Password
-                </label>
+              <div className="mb-3 sm:mb-4">
+                <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+                  <label htmlFor="loginPassword" className="block text-xs sm:text-sm font-medium text-gray-300">
+                    Password
+                  </label>
+                  <Link
+                    to="/forgot-password"
+                    onClick={onClose}
+                    className="text-xs sm:text-sm text-blue-500 hover:text-blue-400 font-medium"
+                  >
+                    Forgot Password?
+                  </Link>
+                </div>
                 <input
                   type="password"
                   id="loginPassword"

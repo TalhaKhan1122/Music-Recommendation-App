@@ -602,7 +602,7 @@ const ArtistDetail: React.FC = () => {
                 </div>
               </div>
             ) : relatedArtists.length > 0 ? (
-              <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-9 3xl:grid-cols-10 gap-2 xs:gap-3 sm:gap-4 md:gap-5 lg:gap-6 justify-items-center">
+              <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8 3xl:grid-cols-9 gap-6 xs:gap-7 sm:gap-8 md:gap-10 lg:gap-12 xl:gap-14 2xl:gap-16 justify-items-center max-w-full mx-auto px-2 xs:px-3 sm:px-4">
                 {relatedArtists.map((relatedArtist) => (
                   <button
                     key={relatedArtist.id}

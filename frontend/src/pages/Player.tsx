@@ -36,6 +36,30 @@ const Player: React.FC = () => {
   const actionMenuRef = useRef<HTMLDivElement | null>(null);
   const fetchedMoodRef = useRef<string | null>(null); // Track which mood we've already fetched
 
+  // Map emotion moods to backend-supported moods for API calls
+  // Backend supports: happy, sad, excited, relaxed, focused
+  const mapEmotionToBackendMood = (emotionMood: string): string => {
+    switch (emotionMood.toLowerCase()) {
+      case 'happy':
+        return 'happy';
+      case 'sad':
+        return 'sad';
+      case 'excited':
+      case 'surprised':
+        return 'excited';
+      case 'relaxed':
+      case 'neutral':
+        return 'relaxed';
+      case 'focused':
+      case 'angry':
+      case 'fearful':
+      case 'disgusted':
+        return 'focused';
+      default:
+        return 'relaxed';
+    }
+  };
+
   // Stub functions for playlist and favorite track management
   const openPlaylistModal = () => {
     toast.info('Playlist management feature coming soon!', {
@@ -82,7 +106,11 @@ const Player: React.FC = () => {
       fetchedMoodRef.current = mood; // Mark this mood as fetched
       setIsLoading(true);
       
-      const response = await getTracksByMood(mood, 20, 'recommendations', 'spotify');
+      // Map emotion mood to backend-supported mood for API call
+      const backendMood = mapEmotionToBackendMood(mood);
+      console.log(`🎵 Display mood: ${mood}, Backend mood: ${backendMood}`);
+      
+      const response = await getTracksByMood(backendMood, 7, 'recommendations', 'spotify');
       console.log('✅ Tracks fetched successfully:', response.data.tracks.length);
       
       setTracks(response.data.tracks);
@@ -426,84 +454,72 @@ const Player: React.FC = () => {
       case 'happy': return 'from-green-500/20 via-emerald-500/20 to-teal-500/20';
       case 'sad': return 'from-blue-500/20 via-indigo-500/20 to-purple-500/20';
       case 'excited': return 'from-pink-500/20 via-rose-500/20 to-red-500/20';
+      case 'surprised': return 'from-amber-500/20 via-orange-500/20 to-yellow-500/20';
       case 'relaxed': return 'from-purple-500/20 via-violet-500/20 to-fuchsia-500/20';
+      case 'neutral': return 'from-gray-500/20 via-slate-500/20 to-zinc-500/20';
       case 'focused': return 'from-amber-500/20 via-orange-500/20 to-yellow-500/20';
+      case 'angry': return 'from-red-500/20 via-rose-500/20 to-pink-500/20';
+      case 'fearful': return 'from-purple-500/20 via-indigo-500/20 to-blue-500/20';
+      case 'disgusted': return 'from-lime-500/20 via-green-500/20 to-emerald-500/20';
       default: return 'from-gray-500/20 via-slate-500/20 to-zinc-500/20';
     }
   };
 
   const getMoodColor = (mood: string) => {
     switch (mood) {
-      case 'happy': return '#10B981';
-      case 'sad': return '#3B82F6';
-      case 'excited': return '#EC4899';
-      case 'relaxed': return '#8B5CF6';
-      case 'focused': return '#F59E0B';
-      default: return '#6B7280';
+      case 'happy': return '#10B981'; // green
+      case 'sad': return '#3B82F6'; // blue
+      case 'excited': return '#EC4899'; // pink
+      case 'surprised': return '#F59E0B'; // amber/orange
+      case 'relaxed': return '#8B5CF6'; // purple
+      case 'neutral': return '#6B7280'; // gray
+      case 'focused': return '#F59E0B'; // amber
+      case 'angry': return '#EF4444'; // red
+      case 'fearful': return '#8B5CF6'; // purple (similar to relaxed)
+      case 'disgusted': return '#84CC16'; // lime green
+      default: return '#6B7280'; // gray
+    }
+  };
+
+  const getMoodEmoji = (mood: string) => {
+    switch (mood) {
+      case 'happy': return '😊';
+      case 'sad': return '😢';
+      case 'excited': return '🎉';
+      case 'surprised': return '😲';
+      case 'relaxed': return '😌';
+      case 'neutral': return '😐';
+      case 'focused': return '🤔';
+      case 'angry': return '😠';
+      case 'fearful': return '😨';
+      case 'disgusted': return '🤢';
+      default: return '😐';
     }
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden" style={{ 
-      background: 'linear-gradient(135deg, #0a0a0a 0%, #1a0a1a 25%, #0f0f1a 50%, #1a0a1a 75%, #0a0a0a 100%)'
-    }}>
-      {/* Animated background particles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(20)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute rounded-full opacity-20"
-            style={{
-              width: `${Math.random() * 4 + 2}px`,
-              height: `${Math.random() * 4 + 2}px`,
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              background: `hsl(${Math.random() * 60 + 270}, 70%, 70%)`,
-              animation: `float ${Math.random() * 10 + 10}s infinite ease-in-out`,
-              animationDelay: `${Math.random() * 5}s`,
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Mood-based gradient overlay */}
+    <div className="min-h-screen bg-black text-white">
+      {/* Background with mood-based gradient */}
       <div 
-        className={`absolute inset-0 bg-gradient-to-br ${getMoodGradient(mood)} opacity-40`}
+        className="absolute inset-0 opacity-30"
         style={{
-          animation: 'pulse-glow 4s ease-in-out infinite',
+          background: `radial-gradient(circle at 50% 0%, ${getMoodColor(mood)}20 0%, transparent 50%)`,
         }}
       ></div>
 
-      <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) translateX(0px); }
-          33% { transform: translateY(-20px) translateX(10px); }
-          66% { transform: translateY(20px) translateX(-10px); }
-        }
-        @keyframes pulse-glow {
-          0%, 100% { opacity: 0.3; }
-          50% { opacity: 0.5; }
-        }
-        @keyframes slide-in {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-
       {/* Content */}
-      <div className="relative z-10 min-h-screen flex flex-col">
-        {/* Center Content - Track List */}
-        <div className="flex-1 flex flex-col px-6 py-8 overflow-hidden max-w-6xl mx-auto w-full">
+      <div className="relative z-10 min-h-screen">
+        <div className="w-full px-4 sm:px-6 md:px-8 lg:px-12 py-8 sm:py-12 max-w-7xl mx-auto">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center h-full">
+            <div className="flex flex-col items-center justify-center min-h-[60vh]">
               <div className="relative mb-6">
                 <div className="absolute inset-0 rounded-full"
                   style={{
                     background: `radial-gradient(circle, ${getMoodColor(mood)}40 0%, transparent 70%)`,
-                    animation: 'pulse-glow 2s ease-in-out infinite',
+                    animation: 'pulse 2s ease-in-out infinite',
                   }}
                 ></div>
-                <div className="relative animate-spin rounded-full h-20 w-20 border-t-4 border-b-4"
+                <div className="relative animate-spin rounded-full h-16 w-16 border-t-4 border-b-4"
                   style={{ 
                     borderColor: `${getMoodColor(mood)}`,
                     borderTopColor: 'transparent',
@@ -511,47 +527,47 @@ const Player: React.FC = () => {
                   }}
                 ></div>
               </div>
-              <p className="text-white text-xl font-semibold mb-2" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+              <p className="text-white text-xl font-semibold mb-2">
                 Loading music for {mood} mood...
               </p>
-              <p className="text-gray-400 text-sm">Finding the perfect tracks for you</p>
+              <p className="text-white/60 text-sm">Finding the perfect tracks for you</p>
             </div>
           ) : (
             <>
-              {/* Header */}
-              <div className="mb-8">
-                <div className="flex items-center justify-between gap-4 mb-4">
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="w-1 h-12 rounded-full"
+              {/* Header Section */}
+              <div className="mb-8 sm:mb-12">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6 mb-6">
+                  <div className="flex items-center gap-4 flex-1">
+                    {/* Mood Emoji */}
+                    <div 
+                      className="text-5xl sm:text-6xl md:text-7xl"
                       style={{
-                        background: `linear-gradient(to bottom, ${getMoodColor(mood)}, ${getMoodColor(mood)}80)`,
-                        boxShadow: `0 0 20px ${getMoodColor(mood)}50`,
+                        filter: `drop-shadow(0 0 20px ${getMoodColor(mood)}50)`,
                       }}
-                    ></div>
+                    >
+                      {getMoodEmoji(mood)}
+                    </div>
                     <div className="flex-1">
-                      <h2 className="text-3xl md:text-4xl font-bold text-white mb-1" style={{ 
-                        fontFamily: 'system-ui, -apple-system, sans-serif',
-                        textShadow: `0 0 20px ${getMoodColor(mood)}30`,
-                      }}>
-                        {mood === 'sad' ? 'Happy & Upbeat Songs' : 
-                         mood === 'happy' ? 'Energetic Songs' :
-                         mood === 'excited' ? 'Dance & Energetic Music' :
-                         mood === 'relaxed' ? 'Calm & Peaceful Music' :
-                         mood === 'focused' ? 'Instrumental & Ambient Music' : 'Chill Music'}
-                      </h2>
-                      <div className="flex items-center gap-3 mt-2">
-                        <div className="px-3 py-1 rounded-full text-xs font-semibold text-white"
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wide bg-white/20 backdrop-blur-sm rounded-full">
+                          MOOD
+                        </span>
+                        <span 
+                          className="px-3 py-1 rounded-full text-xs font-semibold text-white"
                           style={{
                             background: `${getMoodColor(mood)}30`,
                             border: `1px solid ${getMoodColor(mood)}50`,
                           }}
                         >
-                          {mood.charAt(0).toUpperCase() + mood.slice(1)} Mood
-                        </div>
-                        <p className="text-gray-400 text-sm">
-                          {tracks.length} tracks available
-                        </p>
+                          {mood.charAt(0).toUpperCase() + mood.slice(1)}
+                        </span>
                       </div>
+                      <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black text-white mb-2 capitalize">
+                        {mood} Mood
+                      </h1>
+                      <p className="text-white/70 text-sm sm:text-base">
+                        {tracks.length} {tracks.length === 1 ? 'track' : 'tracks'} available
+                      </p>
                     </div>
                   </div>
                   
@@ -559,27 +575,16 @@ const Player: React.FC = () => {
                   <button
                     onClick={handleRefresh}
                     disabled={isLoading}
-                    className="px-6 py-3 rounded-2xl font-semibold transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95"
+                    className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-full font-semibold text-sm sm:text-base transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 active:scale-95 text-white"
                     style={{ 
-                      fontFamily: 'system-ui, -apple-system, sans-serif',
-                      background: `linear-gradient(135deg, ${getMoodColor(mood)}, ${getMoodColor(mood)}80)`,
-                      boxShadow: `0 10px 30px ${getMoodColor(mood)}40`,
+                      background: `${getMoodColor(mood)}`,
+                      boxShadow: `0 4px 20px ${getMoodColor(mood)}40`,
                     }}
-                    onMouseEnter={(e) => {
-                      if (!isLoading) {
-                        e.currentTarget.style.boxShadow = `0 15px 40px ${getMoodColor(mood)}60`;
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isLoading) {
-                        e.currentTarget.style.boxShadow = `0 10px 30px ${getMoodColor(mood)}40`;
-                      }
-                    }}
-                    title="Refresh tracks - Get new songs from all categories (Punjabi, English, Global)"
+                    title="Refresh tracks"
                   >
                     {isLoading ? (
                       <>
-                        <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <svg className="animate-spin h-4 w-4 sm:h-5 sm:w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
@@ -587,7 +592,7 @@ const Player: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                         <span>Refresh</span>
@@ -598,42 +603,35 @@ const Player: React.FC = () => {
               </div>
 
               {/* Track List */}
-              <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+              <div className="space-y-3 sm:space-y-4">
                 {tracks.length === 0 ? (
-                  <div className="text-center py-16">
+                  <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-white/5 p-12 sm:p-16 text-center">
                     <div className="text-6xl mb-4">🎵</div>
-                    <p className="text-gray-400 text-lg">No tracks available</p>
-                    <p className="text-gray-500 text-sm mt-2">Try selecting a different mood</p>
+                    <p className="text-white/70 text-lg font-medium mb-2">No tracks available</p>
+                    <p className="text-white/50 text-sm">Try refreshing or selecting a different mood</p>
                   </div>
                 ) : (
                   tracks.map((track, index) => {
                     const isActive = currentTrackIndex === index;
                     return (
-                      <div
+                      <button
                         key={track.id || index}
+                        type="button"
                         onClick={() => handleTrackSelect(index)}
                         className={`
-                          flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-all duration-300
+                          w-full flex items-center gap-4 p-4 sm:p-5 rounded-xl sm:rounded-2xl cursor-pointer transition-all duration-200 text-left
                           ${isActive 
-                            ? 'backdrop-blur-sm border-2 shadow-lg transform scale-[1.02]' 
-                            : 'bg-gray-800/30 hover:bg-gray-700/50 border-2 border-transparent hover:border-gray-600/50'
+                            ? 'border-2 shadow-lg backdrop-blur-sm' 
+                            : 'border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20'
                           }
                         `}
                         style={{
-                          background: isActive 
-                            ? `rgba(20, 20, 30, 0.8)` 
-                            : undefined,
-                          borderColor: isActive 
-                            ? `${getMoodColor(mood)}50` 
-                            : undefined,
-                          boxShadow: isActive 
-                            ? `0 10px 40px ${getMoodColor(mood)}30` 
-                            : undefined,
-                          animation: isActive ? 'slide-in 0.3s ease-out' : undefined,
+                          borderColor: isActive ? `${getMoodColor(mood)}50` : undefined,
+                          boxShadow: isActive ? `0 8px 30px ${getMoodColor(mood)}30` : undefined,
                         }}
                       >
                         {/* Track Number / Play Icon */}
-                        <div className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-xl"
+                        <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-lg sm:rounded-xl"
                           style={{
                             background: isActive 
                               ? `${getMoodColor(mood)}20` 
@@ -642,16 +640,16 @@ const Player: React.FC = () => {
                         >
                           {isActive && isPlaying ? (
                             <PauseIcon 
-                              size={24} 
-                              className="w-6 h-6"
+                              size={20} 
+                              className="w-5 h-5 sm:w-6 sm:h-6"
                               style={{ color: getMoodColor(mood) }}
                             />
                           ) : (
-                            <span className="text-gray-400 text-sm font-semibold">
+                            <span className="text-white/60 text-sm font-semibold">
                               {isActive ? (
                                 <PlayIcon 
-                                  size={20} 
-                                  className="w-5 h-5"
+                                  size={18} 
+                                  className="w-4 h-4 sm:w-5 sm:h-5"
                                   style={{ color: getMoodColor(mood) }}
                                 />
                               ) : (
@@ -662,23 +660,33 @@ const Player: React.FC = () => {
                         </div>
 
                         {/* Album Art */}
-                        <div className="flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden shadow-lg relative group"
+                        <div className="flex-shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-lg sm:rounded-xl overflow-hidden shadow-md relative group"
                           style={{
                             background: `linear-gradient(135deg, ${getMoodColor(mood)}20, ${getMoodColor(mood)}10)`,
                           }}
                         >
-                          <img 
-                            src={track.albumImage || 'https://via.placeholder.com/200'} 
-                            alt={track.album}
-                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200';
-                            }}
-                          />
+                          {track.albumImage ? (
+                            <img 
+                              src={track.albumImage} 
+                              alt={track.album}
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = '';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500/20 to-indigo-500/20">
+                              <img 
+                                src={BeatifyLogo} 
+                                alt="Beatify" 
+                                className="w-8 h-8 sm:w-10 sm:h-10 object-contain opacity-70"
+                              />
+                            </div>
+                          )}
                           {isActive && (
                             <div className="absolute inset-0"
                               style={{
-                                boxShadow: `inset 0 0 20px ${getMoodColor(mood)}40`,
+                                boxShadow: `inset 0 0 15px ${getMoodColor(mood)}40`,
                               }}
                             ></div>
                           )}
@@ -687,71 +695,62 @@ const Player: React.FC = () => {
                         {/* Track Info */}
                         <div className="flex-1 min-w-0">
                           <div 
-                            className={`font-semibold truncate mb-1 ${isActive ? 'text-white' : 'text-gray-200'}`} 
-                            style={{ 
-                              fontFamily: 'system-ui, -apple-system, sans-serif',
-                              textShadow: isActive ? `0 0 10px ${getMoodColor(mood)}30` : undefined,
-                            }}
+                            className={`font-semibold text-base sm:text-lg truncate mb-1 ${isActive ? 'text-white' : 'text-white'}`}
                           >
                             {track.name}
                           </div>
-                          <div className="text-gray-400 text-sm truncate mb-1" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+                          <div className="text-white/60 text-sm truncate mb-0.5">
                             {track.artists}
                           </div>
-                          <div className="text-gray-500 text-xs truncate" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-                            {track.album}
-                          </div>
-                        </div>
-
-                        {/* Preview Indicator / External Link */}
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          {track.source === 'youtube' || track.externalUrl?.includes('youtube.com') ? (
-                            <div className="p-2 rounded-lg bg-red-500/20 border border-red-500/30" title="YouTube Video">
-                              <YouTubeIcon size={18} className="w-4 h-4 text-red-400" />
-                            </div>
-                          ) : track.source === 'soundcloud' || track.externalUrl?.includes('soundcloud.com') ? (
-                            <div className="p-2 rounded-lg bg-orange-500/20 border border-orange-500/30" title="SoundCloud Track">
-                              <SoundCloudIcon size={18} className="w-4 h-4 text-orange-400" />
-                            </div>
-                          ) : track.previewUrl ? (
-                            <div className="p-2 rounded-lg bg-green-500/20 border border-green-500/30" title="Audio Preview Available">
-                              <PlayIcon size={18} className="w-4 h-4 text-green-400" />
-                            </div>
-                          ) : (
-                            <div className="p-2 rounded-lg bg-gray-500/20 border border-gray-500/30" title="No Preview">
-                              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
-                              </svg>
+                          {track.album && (
+                            <div className="text-white/40 text-xs truncate">
+                              {track.album}
                             </div>
                           )}
-                          <a
-                            href={track.externalUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-2 rounded-lg bg-gray-700/50 hover:bg-gray-600/70 border border-gray-600/30 hover:border-gray-500/50 transition-all"
-                            title={
-                              track.source === 'youtube' || track.externalUrl?.includes('youtube.com') 
-                                ? 'Open in YouTube' 
-                                : track.source === 'soundcloud' || track.externalUrl?.includes('soundcloud.com')
-                                ? 'Open in SoundCloud'
-                                : 'Open in Spotify'
-                            }
-                          >
-                            {track.source === 'youtube' || track.externalUrl?.includes('youtube.com') ? (
-                              <YouTubeIcon size={20} className="w-5 h-5 text-red-400" />
-                            ) : track.source === 'soundcloud' || track.externalUrl?.includes('soundcloud.com') ? (
-                              <SoundCloudIcon size={20} className="w-5 h-5 text-orange-400" />
-                            ) : (
+                        </div>
+
+                        {/* External Link */}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {track.source === 'youtube' || track.externalUrl?.includes('youtube.com') ? (
+                            <a
+                              href={track.externalUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
+                              title="Open in YouTube"
+                            >
+                              <YouTubeIcon size={18} className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />
+                            </a>
+                          ) : track.source === 'soundcloud' || track.externalUrl?.includes('soundcloud.com') ? (
+                            <a
+                              href={track.externalUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
+                              title="Open in SoundCloud"
+                            >
+                              <SoundCloudIcon size={18} className="w-4 h-4 sm:w-5 sm:h-5 text-orange-400" />
+                            </a>
+                          ) : (
+                            <a
+                              href={track.externalUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
+                              title="Open in Spotify"
+                            >
                               <img 
                                 src={BeatifyLogo} 
                                 alt="Beatify" 
-                                className="w-6 h-6 object-contain"
+                                className="w-5 h-5 sm:w-6 sm:h-6 object-contain"
                               />
-                            )}
-                          </a>
+                            </a>
+                          )}
                         </div>
-                      </div>
+                      </button>
                     );
                   })
                 )}
@@ -759,42 +758,7 @@ const Player: React.FC = () => {
             </>
           )}
         </div>
-
       </div>
-
-
-      <style>{`
-        .slider::-webkit-slider-thumb {
-          appearance: none;
-          width: 12px;
-          height: 12px;
-          border-radius: 50%;
-          background: #3b82f6;
-          cursor: pointer;
-        }
-        .slider::-moz-range-thumb {
-          width: 12px;
-          height: 12px;
-          border-radius: 50%;
-          background: #3b82f6;
-          cursor: pointer;
-          border: none;
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.2);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.3);
-        }
-      `}</style>
 
       {/* Hidden Audio Element */}
       <audio
